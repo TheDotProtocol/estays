@@ -5,8 +5,9 @@ import { PROPERTIES } from './seed-properties';
 import { PROPERTY_IMAGES } from './seed-images';
 import { seedAdminDemoData } from './seed-admin-demo';
 import { seedFinanceData } from './seed-finance';
+import { createManyInChunks, createSeedPrisma } from './seed-prisma';
 
-const prisma = new PrismaClient();
+const prisma = createSeedPrisma();
 
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -174,23 +175,28 @@ async function seedProperty(
   const brandedName = brandPropertyName(data.name);
   const existing = await prisma.hotel.findUnique({ where: { slug: data.slug } });
   if (existing) {
-    await prisma.hotel.update({
-      where: { id: existing.id },
-      data: {
-        name: brandedName,
-        propertyType: data.propertyType,
-        status: data.status,
-        starRating: data.starRating,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        googleMapsUrl: data.googleMapsUrl,
-        isDemo: true,
-      },
-    });
-    await seedHotelImages(existing.id, data.slug);
-    await seedHotelReviews(existing.id, data.slug);
-    console.log(`  ↻ Updated: ${brandedName}`);
-    return existing;
+    const roomCount = await prisma.room.count({ where: { hotelId: existing.id } });
+    if (roomCount > 0) {
+      await prisma.hotel.update({
+        where: { id: existing.id },
+        data: {
+          name: brandedName,
+          propertyType: data.propertyType,
+          status: data.status,
+          starRating: data.starRating,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          googleMapsUrl: data.googleMapsUrl,
+          isDemo: true,
+        },
+      });
+      await seedHotelImages(existing.id, data.slug);
+      await seedHotelReviews(existing.id, data.slug);
+      console.log(`  ↻ Updated: ${brandedName}`);
+      return existing;
+    }
+    // Partial seed from a prior failed run — remove and recreate.
+    await prisma.hotel.delete({ where: { id: existing.id } });
   }
 
   const amenities = await prisma.amenity.findMany({
@@ -255,47 +261,43 @@ async function seedProperty(
       },
     });
 
-    for (let i = 0; i < 90; i++) {
-      const date = addDays(today, i);
-      const dayOfWeek = date.getDay();
-      const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
-      const price = isWeekend ? rt.basePrice * 1.2 : rt.basePrice;
-
-      await prisma.ratePlanPrice.create({
-        data: {
+    await prisma.ratePlanPrice.createMany({
+      data: Array.from({ length: 90 }, (_, i) => {
+        const date = addDays(today, i);
+        const dayOfWeek = date.getDay();
+        const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
+        const price = isWeekend ? rt.basePrice * 1.2 : rt.basePrice;
+        return {
           ratePlanId: ratePlan.id,
           date,
           price: Math.round(price * 100) / 100,
-        },
-      });
-    }
+        };
+      }),
+    });
 
-    for (const r of rt.rooms) {
-      const room = await prisma.room.create({
-        data: {
-          hotelId: hotel.id,
-          roomTypeId: roomType.id,
-          roomNumber: r.number,
-          floor: r.floor,
-          status: 'AVAILABLE',
-        },
-      });
+    const rooms = await prisma.room.createManyAndReturn({
+      data: rt.rooms.map((r) => ({
+        hotelId: hotel.id,
+        roomTypeId: roomType.id,
+        roomNumber: r.number,
+        floor: r.floor,
+        status: 'AVAILABLE' as const,
+      })),
+    });
 
-      for (let i = 0; i < 90; i++) {
-        const date = addDays(today, i);
-        await prisma.inventory.create({
-          data: {
-            hotelId: hotel.id,
-            roomId: room.id,
-            date,
-            totalRooms: 1,
-            availableRooms: 1,
-            bookedRooms: 0,
-            blockedRooms: 0,
-          },
-        });
-      }
-    }
+    const inventoryRows = rooms.flatMap((room) =>
+      Array.from({ length: 90 }, (_, i) => ({
+        hotelId: hotel.id,
+        roomId: room.id,
+        date: addDays(today, i),
+        totalRooms: 1,
+        availableRooms: 1,
+        bookedRooms: 0,
+        blockedRooms: 0,
+      }))
+    );
+
+    await createManyInChunks(inventoryRows, 1000, (chunk) => prisma.inventory.createMany({ data: chunk }));
   }
 
   console.log(`  ✓ ${data.propertyType}: ${hotel.name} (${data.starRating}★, ${data.city})`);
@@ -346,7 +348,7 @@ async function main() {
   await seedAmenities();
   const users = await seedUsers();
   await seedAllProperties(users);
-  await seedAdminDemoData();
+  await seedAdminDemoData(prisma);
   await seedFinanceData();
 
   console.log('\n✅ Seed completed successfully!');

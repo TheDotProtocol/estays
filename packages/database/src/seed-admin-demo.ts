@@ -1,8 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
-
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -15,13 +13,13 @@ function dateOnly(d: Date): Date {
   return copy;
 }
 
-async function getOrCreateGuest(email: string, firstName: string, lastName: string) {
-  let user = await prisma.user.findUnique({ where: { email } });
+async function getOrCreateGuest(client: PrismaClient, email: string, firstName: string, lastName: string) {
+  let user = await client.user.findUnique({ where: { email } });
   if (user) return user;
 
-  const role = await prisma.role.findUnique({ where: { name: 'GUEST' } });
+  const role = await client.role.findUnique({ where: { name: 'GUEST' } });
   const passwordHash = await bcrypt.hash('Guest123!', 12);
-  user = await prisma.user.create({
+  user = await client.user.create({
     data: {
       email,
       passwordHash,
@@ -36,7 +34,7 @@ async function getOrCreateGuest(email: string, firstName: string, lastName: stri
   return user;
 }
 
-export async function seedAdminDemoData() {
+export async function seedAdminDemoData(prisma: PrismaClient) {
   console.log('Seeding admin demo data (bookings, payments, complaints)...');
 
   const bookingCount = await prisma.booking.count();
@@ -51,11 +49,11 @@ export async function seedAdminDemoData() {
 
     if (hotels.length) {
       const guests = await Promise.all([
-        getOrCreateGuest('sarah.mitchell@email.com', 'Sarah', 'Mitchell'),
-        getOrCreateGuest('david.chen@email.com', 'David', 'Chen'),
-        getOrCreateGuest('priya.sharma@email.com', 'Priya', 'Sharma'),
-        getOrCreateGuest('michael.brown@email.com', 'Michael', 'Brown'),
-        getOrCreateGuest('emma.wilson@email.com', 'Emma', 'Wilson'),
+        getOrCreateGuest(prisma, 'sarah.mitchell@email.com', 'Sarah', 'Mitchell'),
+        getOrCreateGuest(prisma, 'david.chen@email.com', 'David', 'Chen'),
+        getOrCreateGuest(prisma, 'priya.sharma@email.com', 'Priya', 'Sharma'),
+        getOrCreateGuest(prisma, 'michael.brown@email.com', 'Michael', 'Brown'),
+        getOrCreateGuest(prisma, 'emma.wilson@email.com', 'Emma', 'Wilson'),
       ]);
 
       const today = dateOnly(new Date());
