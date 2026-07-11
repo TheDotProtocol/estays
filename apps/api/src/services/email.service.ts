@@ -44,7 +44,7 @@ export class EmailService {
     const transport = this.getTransporter();
     if (transport) {
       await transport.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@estayshotels.com',
+        from: process.env.SMTP_FROM || process.env.EMAIL_FROM || 'noreply@estayshotels.com',
         to: email,
         subject,
         html,
