@@ -12,9 +12,14 @@ export function createApp() {
   const app = express();
 
   app.use(helmet());
+  const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
       credentials: true,
     })
   );
