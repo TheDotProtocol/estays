@@ -6,10 +6,7 @@ services:
     runtime: node
     plan: starter
     buildCommand: >-
-      npm install &&
-      npm run build --workspace=@estays/shared &&
-      npm run generate --workspace=@estays/database &&
-      npm run build --workspace=@estays/api
+      npm run build:render
     startCommand: node apps/api/dist/index.js
     healthCheckPath: /api/v1/health
     envVars:
