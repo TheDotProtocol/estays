@@ -1,0 +1,28 @@
+{
+  "name": "estays",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:generate": "npm run generate --workspace=@estays/database",
+    "db:migrate": "npm run migrate --workspace=@estays/database",
+    "db:seed": "npm run seed --workspace=@estays/database",
+    "db:seed:production": "npm run seed:production --workspace=@estays/database",
+    "db:studio": "npm run studio --workspace=@estays/database",
+    "db:reset": "npm run reset --workspace=@estays/database"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.9.2"
+}
