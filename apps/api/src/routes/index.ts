@@ -10,6 +10,9 @@ import { notificationRouter } from './notification.routes';
 import { loyaltyRouter } from './loyalty.routes';
 import { partnerRouter } from './partner.routes';
 import { financeRouter } from './finance.routes';
+import { pmsRouter } from './pms.routes';
+import { analyticsRouter } from './analytics.routes';
+import { hrRouter } from './hr.routes';
 
 export const routes = Router();
 
@@ -24,6 +27,6 @@ routes.use('/notifications', notificationRouter);
 routes.use('/loyalty', loyaltyRouter);
 routes.use('/partner', partnerRouter);
 routes.use('/finance', financeRouter);
-
-routes.use('/pms', (_req, res) => res.status(501).json({ success: false, error: { code: 'NOT_IMPLEMENTED', message: 'PMS API - Milestone 4' } }));
-routes.use('/analytics', (_req, res) => res.status(501).json({ success: false, error: { code: 'NOT_IMPLEMENTED', message: 'Analytics API - Milestone 6' } }));
+routes.use('/pms', pmsRouter);
+routes.use('/analytics', analyticsRouter);
+routes.use('/hr', hrRouter);

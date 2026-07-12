@@ -37,7 +37,7 @@ async function seedRolesAndPermissions() {
     });
   }
 
-  const roleNames: RoleName[] = ['SUPER_ADMIN', 'ADMIN', 'PARTNER', 'RECEPTIONIST', 'GUEST'];
+  const roleNames: RoleName[] = ['SUPER_ADMIN', 'ADMIN', 'PARTNER', 'RECEPTIONIST', 'HR_MANAGER', 'GUEST'];
   for (const roleName of roleNames) {
     const role = await prisma.role.upsert({
       where: { name: roleName },

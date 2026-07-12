@@ -106,8 +106,9 @@ cd apps/web && npm start
 
 | Feature | Status |
 |---------|--------|
-| PMS (check-in/out, folios) | Not implemented (501) |
-| Analytics dashboard | Not implemented (501) |
+| PMS (check-in/out, folios) | Implemented — `/partner/pms` |
+| Analytics dashboard | Implemented — `/partner/analytics` + `/api/v1/analytics` |
+| HR / Payroll / Attendance | Implemented — `/partner/hr` + `/api/v1/hr` |
 | Live exchange rates | Static rates in `packages/shared/src/currency.ts` |
 | QR payment verification | Manual "I've completed payment" button |
 | Email delivery | Requires SMTP configuration |

@@ -12,6 +12,7 @@ import {
   downloadSettlementDocument,
 } from '@/lib/finance-api';
 import { useCurrency } from '@/lib/currency';
+import { PartnerNav } from '@/components/PartnerNav';
 import { SETTLEMENT_TAX_DISCLAIMER } from '@estays/shared';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -98,6 +99,7 @@ export default function PartnerFinancePage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+      <PartnerNav />
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-navy">Finance</h1>

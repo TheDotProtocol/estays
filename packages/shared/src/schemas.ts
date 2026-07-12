@@ -251,6 +251,35 @@ export const reviewStatusSchema = z.object({
   status: z.enum(['PUBLISHED', 'HIDDEN', 'PENDING']),
 });
 
+// ─── HR ────────────────────────────────────────────────────────────
+
+export const createEmployeeSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  department: z.string().optional(),
+  designation: z.string().optional(),
+  joinDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  basicSalary: z.number().positive(),
+  hraPercent: z.number().min(0).max(1).default(0.4),
+});
+
+export const attendanceClockSchema = z.object({
+  employeeId: z.string(),
+  action: z.enum(['IN', 'OUT']),
+  notes: z.string().optional(),
+});
+
+export const payrollRunSchema = z.object({
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const dailyOpsQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 // ─── Finance & Settlement ──────────────────────────────────────────
 
 export const commissionRuleSchema = z.object({

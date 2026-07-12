@@ -14,6 +14,7 @@ enum RoleName {
   ADMIN
   PARTNER
   RECEPTIONIST
+  HR_MANAGER
   GUEST
 }
 
@@ -67,6 +68,7 @@ model User {
   auditLogs     AuditLog[]
   uploadedFiles FileUpload[]
   kycDocuments  PartnerKycDocument[]
+  employee      Employee?
 
   @@index([email])
   @@index([partnerStatus])
@@ -240,6 +242,9 @@ model Hotel {
   bookingFinancials   BookingFinancial[]
   settlements         Settlement[]
   ledgerEntries       LedgerEntry[]
+  employees           Employee[]
+  attendanceRecords   AttendanceRecord[]
+  payrollRuns         PayrollRun[]
 
   @@index([city, country])
   @@index([status])
@@ -1078,4 +1083,114 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── HR: Employees, Attendance, Payroll ───────────────────────────
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  ON_LEAVE
+}
+
+enum PayrollRunStatus {
+  DRAFT
+  PROCESSED
+  PAID
+}
+
+model Employee {
+  id           String         @id @default(cuid())
+  hotelId      String
+  userId       String?        @unique
+  employeeCode String
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  department   String?
+  designation  String?
+  joinDate     DateTime       @db.Date
+  status       EmployeeStatus @default(ACTIVE)
+  basicSalary  Decimal        @db.Decimal(10, 2)
+  hraPercent   Decimal        @default(0.4) @db.Decimal(5, 4)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  hotel       Hotel              @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  user        User?              @relation(fields: [userId], references: [id])
+  attendance  AttendanceRecord[]
+  payslips    Payslip[]
+
+  @@unique([hotelId, employeeCode])
+  @@index([hotelId, status])
+  @@map("employees")
+}
+
+model AttendanceRecord {
+  id         String           @id @default(cuid())
+  employeeId String
+  hotelId    String
+  date       DateTime         @db.Date
+  clockIn    DateTime?
+  clockOut   DateTime?
+  status     AttendanceStatus @default(PRESENT)
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  hotel    Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([hotelId, date])
+  @@map("attendance_records")
+}
+
+model PayrollRun {
+  id              String           @id @default(cuid())
+  hotelId         String
+  periodStart     DateTime         @db.Date
+  periodEnd       DateTime         @db.Date
+  status          PayrollRunStatus @default(DRAFT)
+  employeeCount   Int              @default(0)
+  totalGross      Decimal          @default(0) @db.Decimal(12, 2)
+  totalDeductions Decimal          @default(0) @db.Decimal(12, 2)
+  totalNet        Decimal          @default(0) @db.Decimal(12, 2)
+  processedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  hotel    Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  payslips Payslip[]
+
+  @@index([hotelId, periodStart])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id              String   @id @default(cuid())
+  payrollRunId    String
+  employeeId      String
+  daysInPeriod    Int
+  daysPresent     Int
+  daysAbsent      Int
+  grossSalary     Decimal  @db.Decimal(10, 2)
+  totalDeductions Decimal  @db.Decimal(10, 2)
+  netSalary       Decimal  @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([payrollRunId, employeeId])
+  @@map("payslips")
 }

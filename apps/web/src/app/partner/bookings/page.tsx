@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredUser, getPartnerHotels, getHotelBookings } from '@/lib/api';
+import { PartnerNav } from '@/components/PartnerNav';
 import { useCurrency } from '@/lib/currency';
 
 export default function PartnerBookingsPage() {
@@ -40,6 +41,7 @@ export default function PartnerBookingsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <PartnerNav />
       <h1 className="font-display text-3xl font-bold text-navy mb-2">Bookings</h1>
       <p className="text-gold text-sm mb-8">Manage reservations across your properties</p>
 
