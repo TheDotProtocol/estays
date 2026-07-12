@@ -13,3 +13,7 @@ uploads/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Local credentials / demo notes (do not push)
+E Stays links and logins.docx
+*.docx
