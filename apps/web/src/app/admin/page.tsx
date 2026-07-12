@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   getStoredUser,
@@ -17,8 +18,9 @@ import {
   getAdminComplaints,
   getAdminFeedback,
   updateComplaintStatus,
+  refundPayment,
 } from '@/lib/api';
-import { getAdminBillingDashboard, getAdminSettlements, generateDailySettlements, generateWeeklySettlements, getBillingConfig, updateBillingConfig } from '@/lib/finance-api';
+import { getAdminBillingDashboard, getAdminSettlements, generateDailySettlements, generateWeeklySettlements, getBillingConfig, updateBillingConfig, addManualAdjustment } from '@/lib/finance-api';
 import { COMPANY } from '@/lib/company';
 
 type Tab = 'overview' | 'users' | 'partners' | 'transactions' | 'performance' | 'profit-loss' | 'complaints' | 'feedback' | 'approvals' | 'billing';
@@ -223,6 +225,9 @@ function AdminContent() {
       {/* OVERVIEW */}
       {tab === 'overview' && (
         <div className="space-y-6">
+          <Link href="/admin/analytics" className="inline-block px-4 py-2 bg-navy text-white text-sm rounded-lg hover:bg-navy-light">
+            Platform Analytics (ADR, RevPAR, CSV) →
+          </Link>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {[
               { label: 'Total Revenue', value: fmt(stats?.totalRevenue as number || 0), color: 'bg-navy' },
@@ -383,6 +388,14 @@ function AdminContent() {
                       <td className="px-4 py-3 text-xs">{(t.method as string)?.replace(/_/g, ' ')}</td>
                       <td className="px-4 py-3 font-semibold">{fmt(t.amount as number)}</td>
                       <td className="px-4 py-3"><Badge status={t.status as string} /></td>
+                      <td className="px-4 py-3">
+                        {t.status === 'CAPTURED' && (
+                          <button onClick={async () => {
+                            const res = await refundPayment(t.id as string);
+                            if (res.success) load();
+                          }} className="text-xs text-red-600 hover:underline">Refund</button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -643,6 +656,23 @@ function AdminContent() {
             </div>
           </div>
           <p className="text-xs text-navy/50">Weekly settlements run automatically every Monday. Use manual credits when bank/QR payments are confirmed from EOD reports. GST/VAT is tracked per booking for reporting but is not included in settlement payout amounts until auditor guidance is finalized.</p>
+
+          <div className="bg-white rounded-xl border border-gold/10 p-5">
+            <h3 className="font-semibold text-navy mb-3">Manual Credit / Debit</h3>
+            <p className="text-xs text-navy/50 mb-3">Apply when EOD bank report confirms a QR/UPI payment.</p>
+            <div className="flex flex-wrap gap-2">
+              <input id="adj-hotel" placeholder="Hotel ID" className="border rounded px-3 py-2 text-sm w-48" />
+              <input id="adj-desc" placeholder="Description" className="border rounded px-3 py-2 text-sm flex-1 min-w-[200px]" />
+              <input id="adj-amt" type="number" placeholder="Amount" className="border rounded px-3 py-2 text-sm w-28" />
+              <button onClick={async () => {
+                const hotelId = (document.getElementById('adj-hotel') as HTMLInputElement).value;
+                const description = (document.getElementById('adj-desc') as HTMLInputElement).value;
+                const amount = parseFloat((document.getElementById('adj-amt') as HTMLInputElement).value);
+                const res = await addManualAdjustment(hotelId, 'CREDIT', description, amount);
+                setBillingMsg(res.success ? 'Adjustment applied' : res.error?.message || 'Failed');
+              }} className="px-4 py-2 bg-coral text-white text-sm rounded-lg">Apply Credit</button>
+            </div>
+          </div>
 
           <div className="bg-white rounded-xl border border-gold/10 p-5">
             <h3 className="font-semibold text-navy mb-3">Settlement Email Recipients</h3>

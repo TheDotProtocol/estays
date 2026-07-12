@@ -1,12 +1,16 @@
 import { prisma } from '@estays/database';
+import bcrypt from 'bcryptjs';
 import { bookingRepository } from '../repositories/booking.repository';
+import { roomRepository } from '../repositories/room.repository';
 import { auditRepository } from '../repositories/audit.repository';
 import { AppError } from '../utils/app-error';
 import { assertHotelAccess } from '../utils/hotel-access';
-import { parseDecimal } from '../utils/helpers';
+import { parseDecimal, generateBookingNumber, getDateRange } from '../utils/helpers';
 import { taxService } from './tax.service';
 import { hotelEventBus } from '../lib/event-bus';
 import { createChildLogger } from '@estays/logger';
+import { generateFolioPdf } from './folio-pdf.service';
+import { transactionalEmailService } from './transactional-email.service';
 
 const log = createChildLogger('pms-service');
 
@@ -373,6 +377,196 @@ export class PmsService {
     });
 
     return updated;
+  }
+
+  async markNoShow(hotelId: string, bookingId: string, userId: string, isAdmin: boolean) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    const booking = await bookingRepository.findById(bookingId);
+    if (!booking || booking.hotelId !== hotelId) throw AppError.notFound('Booking');
+    if (!['CONFIRMED', 'PENDING'].includes(booking.status)) {
+      throw AppError.badRequest('Booking cannot be marked no-show');
+    }
+
+    const roomId = booking.rooms[0]?.roomId;
+    const dates = getDateRange(
+      booking.checkInDate.toISOString().slice(0, 10),
+      booking.checkOutDate.toISOString().slice(0, 10)
+    );
+
+    await prisma.$transaction(async (tx) => {
+      await tx.booking.update({ where: { id: bookingId }, data: { status: 'NO_SHOW' } });
+      if (roomId) {
+        for (const date of dates) {
+          const inv = await tx.inventory.findUnique({
+            where: { roomId_date: { roomId, date } },
+          });
+          if (inv && inv.bookedRooms > 0) {
+            await tx.inventory.update({
+              where: { roomId_date: { roomId, date } },
+              data: { availableRooms: { increment: 1 }, bookedRooms: { decrement: 1 } },
+            });
+          }
+        }
+      }
+    });
+
+    await auditRepository.log({
+      userId, hotelId, action: 'BOOKING_NO_SHOW', entityType: 'Booking', entityId: bookingId,
+    });
+    hotelEventBus.emit(`hotel:${hotelId}`, { type: 'booking.updated', hotelId });
+    return { bookingId, status: 'NO_SHOW' };
+  }
+
+  async createWalkIn(
+    hotelId: string,
+    userId: string,
+    isAdmin: boolean,
+    input: {
+      roomTypeId: string;
+      roomId: string;
+      checkInDate: string;
+      checkOutDate: string;
+      adults: number;
+      guestFirstName: string;
+      guestLastName: string;
+      guestEmail: string;
+      guestPhone?: string;
+    }
+  ) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+
+    const room = await prisma.room.findFirst({
+      where: { id: input.roomId, hotelId, roomTypeId: input.roomTypeId, status: 'AVAILABLE' },
+    });
+    if (!room) throw AppError.conflict('Room not available');
+
+    const checkIn = new Date(input.checkInDate);
+    const checkOut = new Date(input.checkOutDate);
+    const dates = getDateRange(input.checkInDate, input.checkOutDate);
+    const nights = dates.length;
+
+    const ratePlan = await prisma.ratePlan.findFirst({
+      where: { hotelId, roomTypeId: input.roomTypeId, isActive: true },
+    });
+    if (!ratePlan) throw AppError.notFound('Rate plan');
+
+    const roomType = await roomRepository.findRoomTypeById(input.roomTypeId);
+    const basePrice = roomType ? parseDecimal(roomType.basePrice) : 0;
+    const totalAmount = basePrice * nights;
+    const nightlyRate = basePrice;
+
+    let guest = await prisma.user.findUnique({ where: { email: input.guestEmail.toLowerCase() } });
+    if (!guest) {
+      const guestRole = await prisma.role.findUnique({ where: { name: 'GUEST' } });
+      const passwordHash = await bcrypt.hash(`WalkIn${Date.now()}`, 12);
+      guest = await prisma.user.create({
+        data: {
+          email: input.guestEmail.toLowerCase(),
+          passwordHash,
+          firstName: input.guestFirstName,
+          lastName: input.guestLastName,
+          phone: input.guestPhone,
+          emailVerified: true,
+          roles: guestRole ? { create: { roleId: guestRole.id } } : undefined,
+        },
+      });
+    }
+
+    const bookingNumber = generateBookingNumber();
+
+    const booking = await prisma.$transaction(async (tx) => {
+      for (const date of dates) {
+        const inv = await tx.inventory.findUnique({
+          where: { roomId_date: { roomId: input.roomId, date } },
+        });
+        if (!inv || inv.availableRooms < 1) {
+          throw AppError.conflict(`Room not available on ${date.toISOString().slice(0, 10)}`);
+        }
+        await tx.inventory.update({
+          where: { roomId_date: { roomId: input.roomId, date } },
+          data: { availableRooms: { decrement: 1 }, bookedRooms: { increment: 1 } },
+        });
+      }
+
+      return tx.booking.create({
+        data: {
+          bookingNumber,
+          hotelId,
+          guestId: guest!.id,
+          ratePlanId: ratePlan.id,
+          status: 'CONFIRMED',
+          source: 'WALK_IN',
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+          adults: input.adults,
+          totalAmount,
+          paidAmount: 0,
+          confirmedAt: new Date(),
+          rooms: {
+            create: {
+              roomTypeId: input.roomTypeId,
+              roomId: input.roomId,
+              nightlyRate,
+              nights,
+            },
+          },
+          guests: {
+            create: {
+              firstName: input.guestFirstName,
+              lastName: input.guestLastName,
+              email: input.guestEmail,
+              phone: input.guestPhone,
+              isPrimary: true,
+            },
+          },
+        },
+        include: {
+          guest: true,
+          hotel: { select: { name: true } },
+          rooms: { include: { room: true, roomType: true } },
+        },
+      });
+    });
+
+    await transactionalEmailService.sendBookingConfirmed({
+      to: input.guestEmail,
+      guestName: `${input.guestFirstName} ${input.guestLastName}`,
+      bookingNumber,
+      hotelName: booking.hotel.name,
+      checkIn: input.checkInDate,
+      checkOut: input.checkOutDate,
+      totalAmount: totalAmount.toFixed(2),
+    });
+
+    await auditRepository.log({
+      userId, hotelId, action: 'WALK_IN_BOOKING', entityType: 'Booking', entityId: booking.id,
+    });
+    hotelEventBus.emit(`hotel:${hotelId}`, { type: 'booking.created', hotelId });
+    log.info({ bookingId: booking.id, bookingNumber }, 'Walk-in booking created');
+    return booking;
+  }
+
+  async getFolioReceiptPdf(hotelId: string, bookingId: string, userId: string, isAdmin: boolean) {
+    const folio = await this.getFolio(hotelId, bookingId, userId, isAdmin);
+    const booking = folio.booking;
+    return generateFolioPdf({
+      bookingNumber: booking.bookingNumber || bookingId,
+      hotelName: (await prisma.hotel.findUnique({ where: { id: hotelId }, select: { name: true } }))?.name || '',
+      guestName: `${booking.guest.firstName} ${booking.guest.lastName}`,
+      checkIn: booking.checkInDate.toISOString().slice(0, 10),
+      checkOut: booking.checkOutDate.toISOString().slice(0, 10),
+      status: folio.status,
+      subtotal: folio.subtotal,
+      taxAmount: folio.taxAmount,
+      total: folio.total,
+      items: folio.items.map((i) => ({
+        type: i.type,
+        description: i.description,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice,
+      })),
+    });
   }
 }
 

@@ -1,4 +1,5 @@
 import { hotelRepository } from '../repositories/hotel.repository';
+import { prisma } from '@estays/database';
 import { roomRepository } from '../repositories/room.repository';
 import { inventoryRepository } from '../repositories/inventory.repository';
 import { userRepository } from '../repositories/user.repository';
@@ -18,6 +19,7 @@ import {
 import { createChildLogger } from '@estays/logger';
 import { HotelStatus } from '@estays/database';
 import { hotelEventBus } from '../lib/event-bus';
+import { transactionalEmailService } from './transactional-email.service';
 
 const log = createChildLogger('hotel-service');
 
@@ -310,6 +312,14 @@ export class HotelService {
 
     if (['APPROVED', 'ACTIVE'].includes(status)) {
       await inventoryRepository.generateForHotel(hotelId, 90);
+      const owner = await prisma.user.findUnique({ where: { id: hotel.ownerId } });
+      if (owner?.email) {
+        await transactionalEmailService.sendHotelApproved({
+          to: owner.email,
+          name: `${owner.firstName} ${owner.lastName}`,
+          hotelName: hotel.name,
+        });
+      }
     }
 
     await auditRepository.log({

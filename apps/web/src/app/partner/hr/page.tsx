@@ -12,10 +12,14 @@ import {
   getAttendance,
   runPayroll,
   getPayrollRuns,
+  requestLeave,
+  getLeaveRequests,
+  approveLeave,
+  downloadPayslip,
 } from '@/lib/hr-api';
 import { useCurrency } from '@/lib/currency';
 
-type Tab = 'overview' | 'employees' | 'attendance' | 'payroll';
+type Tab = 'overview' | 'employees' | 'attendance' | 'leave' | 'payroll';
 
 export default function PartnerHrPage() {
   const router = useRouter();
@@ -27,6 +31,7 @@ export default function PartnerHrPage() {
   const [employees, setEmployees] = useState<Record<string, unknown>[]>([]);
   const [attendance, setAttendance] = useState<Record<string, unknown>[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<Record<string, unknown>[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -40,16 +45,18 @@ export default function PartnerHrPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const loadAll = async (id: string) => {
-    const [sumRes, empRes, attRes, payRes] = await Promise.all([
+    const [sumRes, empRes, attRes, payRes, leaveRes] = await Promise.all([
       getHrSummary(id),
       getEmployees(id),
       getAttendance(id, monthStart.toISOString().slice(0, 10), today),
       getPayrollRuns(id),
+      getLeaveRequests(id),
     ]);
     if (sumRes.success) setSummary(sumRes.data as Record<string, unknown>);
     if (empRes.success) setEmployees((empRes.data as Record<string, unknown>[]) || []);
     if (attRes.success) setAttendance((attRes.data as Record<string, unknown>[]) || []);
     if (payRes.success) setPayrollRuns((payRes.data as Record<string, unknown>[]) || []);
+    if (leaveRes.success) setLeaveRequests((leaveRes.data as Record<string, unknown>[]) || []);
   };
 
   useEffect(() => {
@@ -117,7 +124,7 @@ export default function PartnerHrPage() {
       {msg && <p className="mb-4 text-sm px-4 py-2 bg-sand rounded-lg text-navy">{msg}</p>}
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {(['overview', 'employees', 'attendance', 'payroll'] as Tab[]).map((t) => (
+        {(['overview', 'employees', 'attendance', 'leave', 'payroll'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm rounded-lg capitalize ${tab === t ? 'bg-navy text-white' : 'bg-sand text-navy'}`}>
             {t}
@@ -178,6 +185,9 @@ export default function PartnerHrPage() {
                     className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Clock In</button>
                   <button onClick={() => handleClock(e.id as string, 'OUT')}
                     className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Clock Out</button>
+                  <button onClick={() => requestLeave(hotelId, {
+                    employeeId: e.id, startDate: today, endDate: today, reason: 'Personal leave',
+                  }).then(() => loadAll(hotelId))} className="px-2 py-1 text-xs bg-sand text-navy rounded">Request Leave</button>
                 </div>
               </div>
             ))}
@@ -212,6 +222,35 @@ export default function PartnerHrPage() {
         </div>
       )}
 
+      {tab === 'leave' && (
+        <div className="bg-white border rounded-xl overflow-hidden">
+          <div className="px-5 py-3 border-b font-semibold text-navy">Leave Requests ({leaveRequests.length})</div>
+          <div className="divide-y">
+            {leaveRequests.map((l) => {
+              const emp = l.employee as Record<string, string>;
+              return (
+                <div key={l.id as string} className="px-5 py-4 flex flex-wrap justify-between items-center gap-2">
+                  <div>
+                    <p className="font-medium text-navy">{emp.firstName} {emp.lastName}</p>
+                    <p className="text-xs text-navy/50">{(l.startDate as string).slice(0, 10)} — {(l.endDate as string).slice(0, 10)} · {l.reason as string}</p>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <span className={`text-xs px-2 py-0.5 rounded ${l.status === 'APPROVED' ? 'bg-green-100 text-green-800' : l.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-700'}`}>{l.status as string}</span>
+                    {l.status === 'PENDING' && (
+                      <>
+                        <button onClick={() => approveLeave(hotelId, l.id as string, true).then(() => loadAll(hotelId))} className="text-xs px-2 py-1 bg-green-600 text-white rounded">Approve</button>
+                        <button onClick={() => approveLeave(hotelId, l.id as string, false).then(() => loadAll(hotelId))} className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded">Reject</button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {leaveRequests.length === 0 && <p className="p-8 text-center text-navy/40 text-sm">No leave requests</p>}
+          </div>
+        </div>
+      )}
+
       {tab === 'payroll' && (
         <div className="space-y-4">
           <div className="bg-white border rounded-xl p-5 flex flex-wrap justify-between items-center gap-4">
@@ -241,6 +280,7 @@ export default function PartnerHrPage() {
                       <span>{emp.firstName} {emp.lastName}</span>
                       <span className="text-navy/50">{ps.daysPresent as number} days present</span>
                       <span className="font-medium">{format(Number(ps.netSalary))}</span>
+                      <button onClick={() => downloadPayslip(hotelId, ps.id as string)} className="text-xs text-coral hover:underline">PDF</button>
                     </div>
                   );
                 })}

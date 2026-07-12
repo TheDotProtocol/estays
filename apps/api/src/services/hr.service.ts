@@ -3,6 +3,7 @@ import { assertHotelAccess } from '../utils/hotel-access';
 import { AppError } from '../utils/app-error';
 import { parseDecimal } from '../utils/helpers';
 import { auditRepository } from '../repositories/audit.repository';
+import { generatePayslipPdf } from './payslip-pdf.service';
 
 function dateOnly(d: Date): Date {
   const copy = new Date(d);
@@ -159,6 +160,23 @@ export class HrService {
       },
     });
 
+    const approvedLeave = await prisma.leaveRequest.findMany({
+      where: {
+        hotelId,
+        status: 'APPROVED',
+        startDate: { lte: end },
+        endDate: { gte: start },
+      },
+    });
+
+    const leaveDaysByEmployee = new Map<string, number>();
+    for (const leave of approvedLeave) {
+      const ls = leave.startDate > start ? leave.startDate : start;
+      const le = leave.endDate < end ? leave.endDate : end;
+      const days = daysInRange(ls, le);
+      leaveDaysByEmployee.set(leave.employeeId, (leaveDaysByEmployee.get(leave.employeeId) || 0) + days);
+    }
+
     const attByEmployee = new Map<string, number>();
     for (const a of attendance) {
       const weight = a.status === 'HALF_DAY' ? 0.5 : 1;
@@ -181,15 +199,18 @@ export class HrService {
 
     for (const emp of employees) {
       const daysPresent = Math.min(daysInPeriod, attByEmployee.get(emp.id) || 0);
-      const daysAbsent = daysInPeriod - daysPresent;
+      const leaveDays = leaveDaysByEmployee.get(emp.id) || 0;
+      const daysAbsent = Math.max(0, daysInPeriod - daysPresent - leaveDays);
       const basic = parseDecimal(emp.basicSalary);
       const hra = basic * parseDecimal(emp.hraPercent);
       const monthlyGross = basic + hra;
       const dailyRate = monthlyGross / 30;
       const grossSalary = Math.round(dailyRate * daysPresent * 100) / 100;
       const pfDeduction = Math.round(basic * 0.12 * (daysPresent / daysInPeriod) * 100) / 100;
+      const esiDeduction = Math.round(grossSalary * 0.0075 * 100) / 100;
+      const profTax = grossSalary > 15000 ? Math.round(200 * (daysPresent / daysInPeriod) * 100) / 100 : 0;
       const tdsDeduction = Math.round(grossSalary * 0.05 * 100) / 100;
-      const totalDed = pfDeduction + tdsDeduction;
+      const totalDed = pfDeduction + esiDeduction + profTax + tdsDeduction;
       const netSalary = Math.round((grossSalary - totalDed) * 100) / 100;
 
       payslips.push({
@@ -291,6 +312,104 @@ export class HrService {
           }
         : null,
     };
+  }
+
+  async updateEmployee(
+    hotelId: string,
+    employeeId: string,
+    userId: string,
+    isAdmin: boolean,
+    data: Record<string, unknown>
+  ) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    const emp = await prisma.employee.findFirst({ where: { id: employeeId, hotelId } });
+    if (!emp) throw AppError.notFound('Employee');
+    return prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        department: data.department as string | undefined,
+        designation: data.designation as string | undefined,
+        basicSalary: data.basicSalary as number | undefined,
+        shiftStart: data.shiftStart as string | undefined,
+        shiftEnd: data.shiftEnd as string | undefined,
+        status: data.status as 'ACTIVE' | 'ON_LEAVE' | 'TERMINATED' | undefined,
+      },
+    });
+  }
+
+  async requestLeave(
+    hotelId: string,
+    userId: string,
+    isAdmin: boolean,
+    data: { employeeId: string; startDate: string; endDate: string; reason: string }
+  ) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    return prisma.leaveRequest.create({
+      data: {
+        hotelId,
+        employeeId: data.employeeId,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        reason: data.reason,
+      },
+      include: { employee: { select: { firstName: true, lastName: true, employeeCode: true } } },
+    });
+  }
+
+  async listLeave(hotelId: string, userId: string, isAdmin: boolean) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    return prisma.leaveRequest.findMany({
+      where: { hotelId },
+      include: { employee: { select: { firstName: true, lastName: true, employeeCode: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async approveLeave(hotelId: string, leaveId: string, userId: string, isAdmin: boolean, approve: boolean) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    const leave = await prisma.leaveRequest.findFirst({ where: { id: leaveId, hotelId } });
+    if (!leave) throw AppError.notFound('Leave request');
+    return prisma.leaveRequest.update({
+      where: { id: leaveId },
+      data: {
+        status: approve ? 'APPROVED' : 'REJECTED',
+        approvedBy: userId,
+      },
+    });
+  }
+
+  async getPayslipPdf(hotelId: string, payslipId: string, userId: string, isAdmin: boolean) {
+    await assertHotelAccess(hotelId, userId, isAdmin);
+    const payslip = await prisma.payslip.findFirst({
+      where: { id: payslipId },
+      include: {
+        employee: true,
+        payrollRun: { include: { hotel: { select: { name: true } } } },
+      },
+    });
+    if (!payslip || payslip.payrollRun.hotelId !== hotelId) throw AppError.notFound('Payslip');
+
+    const gross = parseDecimal(payslip.grossSalary);
+    const deductions = parseDecimal(payslip.totalDeductions);
+    return generatePayslipPdf({
+      employeeName: `${payslip.employee.firstName} ${payslip.employee.lastName}`,
+      employeeCode: payslip.employee.employeeCode,
+      designation: payslip.employee.designation || 'Staff',
+      hotelName: payslip.payrollRun.hotel.name,
+      periodStart: payslip.payrollRun.periodStart.toISOString().slice(0, 10),
+      periodEnd: payslip.payrollRun.periodEnd.toISOString().slice(0, 10),
+      daysPresent: payslip.daysPresent,
+      daysAbsent: payslip.daysAbsent,
+      grossSalary: payslip.grossSalary,
+      totalDeductions: payslip.totalDeductions,
+      netSalary: payslip.netSalary,
+      deductions: [
+        { label: 'PF (12%)', amount: gross * 0.12 },
+        { label: 'ESI (0.75%)', amount: gross * 0.0075 },
+        { label: 'Professional Tax', amount: gross > 15000 ? 200 : 0 },
+        { label: 'TDS (5%)', amount: gross * 0.05 },
+      ].filter((d) => d.amount > 0).map((d) => ({ ...d, amount: Math.round(d.amount * 100) / 100 })),
+    });
   }
 }
 

@@ -9,6 +9,8 @@ import {
   createEmployeeSchema,
   attendanceClockSchema,
   payrollRunSchema,
+  leaveRequestSchema,
+  updateEmployeeSchema,
   analyticsQuerySchema,
   PERMISSIONS,
 } from '@estays/shared';
@@ -112,6 +114,66 @@ hrRouter.get(
   async (req: AuthRequest, res: Response) => {
     const hotelId = param(req.params.hotelId);
     const data = await hrService.listPayrollRuns(hotelId, req.user!.sub, isAdminUser(req));
+    sendSuccess(res, data);
+  }
+);
+
+hrRouter.get(
+  '/hotels/:hotelId/payroll/payslips/:payslipId.pdf',
+  authenticate,
+  requirePermission(PERMISSIONS.HR_READ),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const pdf = await hrService.getPayslipPdf(hotelId, param(req.params.payslipId), req.user!.sub, isAdminUser(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="payslip-${req.params.payslipId}.pdf"`);
+    res.send(pdf);
+  }
+);
+
+hrRouter.patch(
+  '/hotels/:hotelId/employees/:employeeId',
+  authenticate,
+  requirePermission(PERMISSIONS.HR_MANAGE),
+  validate(updateEmployeeSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const data = await hrService.updateEmployee(hotelId, param(req.params.employeeId), req.user!.sub, isAdminUser(req), req.body);
+    sendSuccess(res, data);
+  }
+);
+
+hrRouter.post(
+  '/hotels/:hotelId/leave',
+  authenticate,
+  requirePermission(PERMISSIONS.HR_ATTENDANCE),
+  validate(leaveRequestSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const data = await hrService.requestLeave(hotelId, req.user!.sub, isAdminUser(req), req.body);
+    sendCreated(res, data);
+  }
+);
+
+hrRouter.get(
+  '/hotels/:hotelId/leave',
+  authenticate,
+  requirePermission(PERMISSIONS.HR_READ),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const data = await hrService.listLeave(hotelId, req.user!.sub, isAdminUser(req));
+    sendSuccess(res, data);
+  }
+);
+
+hrRouter.post(
+  '/hotels/:hotelId/leave/:leaveId/approve',
+  authenticate,
+  requirePermission(PERMISSIONS.HR_MANAGE),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const approve = (req.body as { approve?: boolean }).approve !== false;
+    const data = await hrService.approveLeave(hotelId, param(req.params.leaveId), req.user!.sub, isAdminUser(req), approve);
     sendSuccess(res, data);
   }
 );

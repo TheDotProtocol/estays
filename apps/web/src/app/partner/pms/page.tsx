@@ -10,6 +10,9 @@ import {
   checkInGuest,
   checkOutGuest,
   markRoomClean,
+  markNoShow,
+  addFolioItem,
+  downloadFolioReceipt,
 } from '@/lib/pms-api';
 import { useCurrency } from '@/lib/currency';
 
@@ -63,6 +66,19 @@ export default function PartnerPmsPage() {
   useEffect(() => {
     if (hotelId) load(hotelId);
   }, [hotelId]);
+
+  const handleNoShow = async (bookingId: string) => {
+    const res = await markNoShow(hotelId, bookingId);
+    setMsg(res.success ? 'Marked no-show' : (res.error?.message || 'Failed'));
+    if (res.success) load(hotelId);
+  };
+
+  const handleAddCharge = async (bookingId: string) => {
+    const res = await addFolioItem(hotelId, bookingId, {
+      type: 'SERVICE', description: 'Extra service', quantity: 1, unitPrice: 25,
+    });
+    setMsg(res.success ? 'Charge added to folio' : (res.error?.message || 'Failed'));
+  };
 
   const handleCheckIn = async (bookingId: string) => {
     const roomId = checkInRoom[bookingId];
@@ -154,23 +170,39 @@ export default function PartnerPmsPage() {
                 </select>
                 <button onClick={() => handleCheckIn(b.id as string)}
                   className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg">Check In</button>
+                <button onClick={() => handleNoShow(b.id as string)}
+                  className="px-3 py-1 bg-red-100 text-red-700 text-sm rounded-lg">No Show</button>
               </div>
             )}
           </OpsSection>
 
           <OpsSection title="Departures — Check Out" items={departures} empty="No departures today">
             {(b) => (
-              <button onClick={() => handleCheckOut(b.id as string)}
-                className="mt-2 px-3 py-1 bg-navy text-white text-sm rounded-lg">Check Out</button>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button onClick={() => handleCheckOut(b.id as string)}
+                  className="px-3 py-1 bg-navy text-white text-sm rounded-lg">Check Out</button>
+                <button onClick={() => handleAddCharge(b.id as string)}
+                  className="px-3 py-1 bg-sand text-navy text-sm rounded-lg">+ Charge</button>
+                <button onClick={() => downloadFolioReceipt(hotelId, b.id as string)}
+                  className="px-3 py-1 border text-navy text-sm rounded-lg">Receipt PDF</button>
+              </div>
             )}
           </OpsSection>
 
           <OpsSection title="In-House Guests" items={inHouse} empty="No guests in-house">
             {(b) => (
-              <p className="text-xs text-navy/50 mt-1">
-                Room {b.roomNumber as string} · Folio: {b.folioStatus as string}
-                {b.folioTotal ? ` · ${format(b.folioTotal as number)}` : ''}
-              </p>
+              <>
+                <p className="text-xs text-navy/50 mt-1">
+                  Room {b.roomNumber as string} · Folio: {b.folioStatus as string}
+                  {b.folioTotal ? ` · ${format(b.folioTotal as number)}` : ''}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <button onClick={() => handleCheckOut(b.id as string)}
+                    className="px-3 py-1 bg-navy text-white text-sm rounded-lg">Check Out</button>
+                  <button onClick={() => downloadFolioReceipt(hotelId, b.id as string)}
+                    className="px-3 py-1 border text-navy text-sm rounded-lg">Receipt PDF</button>
+                </div>
+              </>
             )}
           </OpsSection>
         </div>

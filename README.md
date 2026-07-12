@@ -25,6 +25,10 @@ BOOTSTRAP_ADMIN_EMAIL="you@company.com" \
 BOOTSTRAP_ADMIN_PASSWORD="strong-password-here" \
 DATABASE_URL="postgresql://..." \
 npm run db:seed:production
+
+# Demo hotels + inventory (Bengaluru, Mumbai, etc.) — run once on live DB
+DATABASE_URL="postgresql://...external-url...?sslmode=require" \
+npm run db:seed:demo
 ```
 
 Set `CORS_ORIGIN` on Render to your Vercel URL. Set `NEXT_PUBLIC_API_URL` on Vercel to `https://your-api.onrender.com/api/v1`.

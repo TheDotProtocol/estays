@@ -387,6 +387,20 @@ export async function getNotifications() {
   return api('/notifications?limit=20');
 }
 
+export async function refundPayment(paymentId: string, amount?: number) {
+  return api(`/admin/payments/${paymentId}/refund`, {
+    method: 'POST',
+    body: JSON.stringify(amount != null ? { amount } : {}),
+  });
+}
+
+export async function submitComplaint(hotelId: string, data: Record<string, unknown>) {
+  return api(`/hotels/${hotelId}/complaints`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function getPendingPartners() {
   return api('/admin/partners/pending');
 }

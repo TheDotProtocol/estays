@@ -191,6 +191,14 @@ export class AnalyticsService {
 
     return { platform: metrics, hotels: byHotel };
   }
+
+  exportCsv(metrics: RevenueMetrics): string {
+    const header = 'date,revenue,bookings,occupancy_pct';
+    const rows = metrics.breakdown.map(
+      (b) => `${b.date},${b.revenue},${b.bookings},${b.occupancy}`
+    );
+    return [header, ...rows].join('\n');
+  }
 }
 
 export const analyticsService = new AnalyticsService();

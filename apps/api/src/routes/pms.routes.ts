@@ -11,6 +11,8 @@ import {
   addFolioItemSchema,
   updateRoomStatusSchema,
   dailyOpsQuerySchema,
+  walkInBookingSchema,
+  noShowSchema,
   PERMISSIONS,
 } from '@estays/shared';
 import { hotelService } from '../services/hotel.service';
@@ -99,6 +101,45 @@ pmsRouter.post(
       req.body
     );
     sendCreated(res, data);
+  }
+);
+
+pmsRouter.post(
+  '/hotels/:hotelId/walk-in',
+  authenticate,
+  requirePermission(PERMISSIONS.PMS_CHECKIN),
+  validate(walkInBookingSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const data = await pmsService.createWalkIn(hotelId, req.user!.sub, isAdminUser(req), req.body);
+    sendCreated(res, data);
+  }
+);
+
+pmsRouter.post(
+  '/hotels/:hotelId/no-show',
+  authenticate,
+  requirePermission(PERMISSIONS.BOOKING_UPDATE),
+  validate(noShowSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const { bookingId } = req.body;
+    const data = await pmsService.markNoShow(hotelId, bookingId, req.user!.sub, isAdminUser(req));
+    sendSuccess(res, data);
+  }
+);
+
+pmsRouter.get(
+  '/hotels/:hotelId/bookings/:bookingId/folio/receipt.pdf',
+  authenticate,
+  requirePermission(PERMISSIONS.PMS_FOLIO),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const bookingId = param(req.params.bookingId);
+    const pdf = await pmsService.getFolioReceiptPdf(hotelId, bookingId, req.user!.sub, isAdminUser(req));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="folio-${bookingId}.pdf"`);
+    res.send(pdf);
   }
 );
 

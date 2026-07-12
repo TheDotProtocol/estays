@@ -276,6 +276,44 @@ export const payrollRunSchema = z.object({
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+export const walkInBookingSchema = z.object({
+  roomTypeId: z.string(),
+  roomId: z.string(),
+  checkInDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  checkOutDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  adults: z.number().int().min(1).default(1),
+  guestFirstName: z.string().min(1),
+  guestLastName: z.string().min(1),
+  guestEmail: z.string().email(),
+  guestPhone: z.string().optional(),
+});
+
+export const noShowSchema = z.object({ bookingId: z.string() });
+
+export const leaveRequestSchema = z.object({
+  employeeId: z.string(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().min(1),
+});
+
+export const updateEmployeeSchema = z.object({
+  department: z.string().optional(),
+  designation: z.string().optional(),
+  basicSalary: z.number().positive().optional(),
+  shiftStart: z.string().optional(),
+  shiftEnd: z.string().optional(),
+  status: z.enum(['ACTIVE', 'ON_LEAVE', 'TERMINATED']).optional(),
+});
+
+export const guestComplaintSchema = z.object({
+  guestName: z.string().min(1),
+  guestEmail: z.string().email(),
+  category: z.enum(['SERVICE', 'CLEANLINESS', 'SAFETY', 'BILLING', 'OTHER']),
+  subject: z.string().min(1),
+  description: z.string().min(10),
+});
+
 export const dailyOpsQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });

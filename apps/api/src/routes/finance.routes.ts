@@ -14,7 +14,9 @@ import {
   settlementAdjustmentSchema,
   commissionRuleSchema,
   billingConfigSchema,
+  partnerBankAccountSchema,
 } from '@estays/shared';
+import { prisma } from '@estays/database';
 
 export const financeRouter = Router();
 
@@ -261,5 +263,48 @@ financeRouter.get(
     const category = (req.query.category as 'PAID_ONLINE' | 'PAY_AT_HOTEL') || 'PAID_ONLINE';
     const calc = await commissionService.calculate(hotelId, amount, category);
     sendSuccess(res, calc);
+  }
+);
+
+// ─── Partner Bank Accounts ─────────────────────────────────────────
+
+financeRouter.get(
+  '/partner/hotels/:hotelId/bank-accounts',
+  authenticate,
+  requirePermission(PERMISSIONS.FINANCE_READ),
+  requireHotelAccess,
+  async (req: AuthRequest, res: Response) => {
+    const accounts = await prisma.partnerBankAccount.findMany({
+      where: { hotelId: param(req.params.hotelId) },
+      orderBy: { isPrimary: 'desc' },
+    });
+    sendSuccess(res, accounts);
+  }
+);
+
+financeRouter.post(
+  '/partner/hotels/:hotelId/bank-accounts',
+  authenticate,
+  requirePermission(PERMISSIONS.FINANCE_SETTLE),
+  requireHotelAccess,
+  validate(partnerBankAccountSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    if (req.body.isPrimary) {
+      await prisma.partnerBankAccount.updateMany({ where: { hotelId }, data: { isPrimary: false } });
+    }
+    const account = await prisma.partnerBankAccount.create({
+      data: {
+        hotelId,
+        partnerId: req.user!.sub,
+        bankName: req.body.bankName,
+        accountName: req.body.accountName,
+        accountNumber: req.body.accountNumber,
+        ifscCode: req.body.ifscCode,
+        swiftCode: req.body.swiftCode,
+        isPrimary: req.body.isPrimary ?? false,
+      },
+    });
+    sendCreated(res, account);
   }
 );

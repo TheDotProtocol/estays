@@ -11,6 +11,7 @@ import { CreateBookingInput } from '@estays/shared';
 import { createChildLogger } from '@estays/logger';
 import { loyaltyService } from './loyalty.service';
 import { hotelEventBus } from '../lib/event-bus';
+import { transactionalEmailService } from './transactional-email.service';
 
 const log = createChildLogger('booking-service');
 
@@ -183,6 +184,19 @@ export class BookingService {
       booking.guestId,
       parseDecimal(booking.totalAmount)
     );
+
+    const guest = await prisma.user.findUnique({ where: { id: booking.guestId } });
+    if (guest?.email) {
+      await transactionalEmailService.sendBookingConfirmed({
+        to: guest.email,
+        guestName: `${guest.firstName} ${guest.lastName}`,
+        bookingNumber: booking.bookingNumber,
+        hotelName: booking.hotel.name,
+        checkIn: booking.checkInDate.toISOString().slice(0, 10),
+        checkOut: booking.checkOutDate.toISOString().slice(0, 10),
+        totalAmount: parseDecimal(booking.totalAmount).toFixed(2),
+      });
+    }
 
     hotelEventBus.publish({
       hotelId: booking.hotelId,

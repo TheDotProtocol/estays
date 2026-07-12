@@ -65,6 +65,7 @@ export function Header() {
             {user ? (
               <div className="flex items-center gap-2 ml-2">
                 {isGuest && <LoyaltyBadge compact />}
+                <Link href="/notifications" className="px-2 py-2 text-sm text-navy/70 hover:bg-sand rounded-lg">Alerts</Link>
                 <span className="text-sm text-navy/70 hidden md:inline">
                   {user.firstName} {user.lastName}
                 </span>

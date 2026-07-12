@@ -3,6 +3,7 @@ import { hotelRepository } from '../repositories/hotel.repository';
 import { userRepository } from '../repositories/user.repository';
 import { auditRepository } from '../repositories/audit.repository';
 import { AppError } from '../utils/app-error';
+import { transactionalEmailService } from './transactional-email.service';
 
 const PLATFORM_COMMISSION_RATE = 0.15;
 
@@ -176,6 +177,11 @@ export class AdminService {
     if (!user.roles.some((r) => r.role.name === 'PARTNER')) throw AppError.badRequest('User is not a partner');
 
     const updated = await userRepository.updatePartnerStatus(userId, status);
+    await transactionalEmailService.sendPartnerStatus({
+      to: user.email,
+      name: `${user.firstName} ${user.lastName}`,
+      status,
+    });
     await auditRepository.log({
       userId: adminId,
       action: status === 'APPROVED' ? 'PARTNER_APPROVED' : 'PARTNER_REJECTED',

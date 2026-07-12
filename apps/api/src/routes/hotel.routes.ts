@@ -15,10 +15,12 @@ import {
   createRatePlanSchema,
   updatePricesSchema,
   paginationSchema,
+  guestComplaintSchema,
   PERMISSIONS,
 } from '@estays/shared';
 import { searchDestinations, COUNTRIES } from '@estays/shared';
 import { AppError } from '../utils/app-error';
+import { prisma } from '@estays/database';
 
 export const hotelRouter = Router();
 
@@ -250,5 +252,27 @@ hotelRouter.put(
       req.body.prices
     );
     sendSuccess(res, plan);
+  }
+);
+
+hotelRouter.post(
+  '/:hotelId/complaints',
+  validate(guestComplaintSchema),
+  async (req: AuthRequest, res: Response) => {
+    const hotelId = param(req.params.hotelId);
+    const hotel = await prisma.hotel.findUnique({ where: { id: hotelId } });
+    if (!hotel) throw AppError.notFound('Hotel');
+    const complaint = await prisma.hotelComplaint.create({
+      data: {
+        hotelId,
+        guestName: req.body.guestName,
+        guestEmail: req.body.guestEmail,
+        category: req.body.category,
+        subject: req.body.subject,
+        description: req.body.description,
+        status: 'OPEN',
+      },
+    });
+    sendCreated(res, complaint);
   }
 );

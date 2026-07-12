@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStoredUser, getPartnerHotels } from '@/lib/api';
 import { PartnerNav } from '@/components/PartnerNav';
-import { getHotelAnalytics } from '@/lib/analytics-api';
+import { getHotelAnalytics, downloadAnalyticsCsv } from '@/lib/analytics-api';
 import { useCurrency } from '@/lib/currency';
 import type { RevenueMetrics } from '@estays/shared';
 
@@ -24,11 +24,12 @@ export default function PartnerAnalyticsPage() {
   const [hotels, setHotels] = useState<Record<string, unknown>[]>([]);
   const [hotelId, setHotelId] = useState('');
   const [range, setRange] = useState(defaultRange);
+  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
   const [metrics, setMetrics] = useState<RevenueMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async (id: string) => {
-    const res = await getHotelAnalytics(id, range.startDate, range.endDate);
+    const res = await getHotelAnalytics(id, range.startDate, range.endDate, groupBy);
     if (res.success) setMetrics(res.data as RevenueMetrics);
   };
 
@@ -53,7 +54,7 @@ export default function PartnerAnalyticsPage() {
 
   useEffect(() => {
     if (hotelId) load(hotelId);
-  }, [hotelId, range]);
+  }, [hotelId, range, groupBy]);
 
   if (loading) return <div className="text-center py-20 text-navy/50">Loading analytics...</div>;
 
@@ -80,6 +81,13 @@ export default function PartnerAnalyticsPage() {
           <span className="text-navy/40">to</span>
           <input type="date" value={range.endDate} onChange={(e) => setRange((r) => ({ ...r, endDate: e.target.value }))}
             className="border rounded-lg px-2 py-1.5 text-sm" />
+          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value as 'day' | 'week' | 'month')}
+            className="border rounded-lg px-2 py-1 text-sm">
+            <option value="day">Daily</option>
+            <option value="month">Monthly</option>
+          </select>
+          <button onClick={() => downloadAnalyticsCsv(hotelId, range.startDate, range.endDate, groupBy)}
+            className="px-3 py-1.5 bg-navy text-white text-sm rounded-lg">Export CSV</button>
         </div>
       </div>
 

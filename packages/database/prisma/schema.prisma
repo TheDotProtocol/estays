@@ -245,6 +245,7 @@ model Hotel {
   employees           Employee[]
   attendanceRecords   AttendanceRecord[]
   payrollRuns         PayrollRun[]
+  leaveRequests       LeaveRequest[]
 
   @@index([city, country])
   @@index([status])
@@ -1122,6 +1123,8 @@ model Employee {
   status       EmployeeStatus @default(ACTIVE)
   basicSalary  Decimal        @db.Decimal(10, 2)
   hraPercent   Decimal        @default(0.4) @db.Decimal(5, 4)
+  shiftStart   String?        @default("09:00")
+  shiftEnd     String?        @default("18:00")
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -1129,6 +1132,7 @@ model Employee {
   user        User?              @relation(fields: [userId], references: [id])
   attendance  AttendanceRecord[]
   payslips    Payslip[]
+  leaveRequests LeaveRequest[]
 
   @@unique([hotelId, employeeCode])
   @@index([hotelId, status])
@@ -1193,4 +1197,30 @@ model Payslip {
 
   @@unique([payrollRunId, employeeId])
   @@map("payslips")
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model LeaveRequest {
+  id         String      @id @default(cuid())
+  employeeId String
+  hotelId    String
+  startDate  DateTime    @db.Date
+  endDate    DateTime    @db.Date
+  reason     String
+  status     LeaveStatus @default(PENDING)
+  approvedBy String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  hotel    Hotel    @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@index([hotelId, status])
+  @@map("leave_requests")
 }

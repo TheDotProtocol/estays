@@ -120,3 +120,31 @@ export async function generateDailySettlements(hotelId?: string, date?: string) 
 export function settlementDocumentUrl(hotelId: string, settlementId: string, type: string) {
   return `${API_URL}/finance/partner/hotels/${hotelId}/finance/settlements/${settlementId}/documents/${type}`;
 }
+
+export async function addManualAdjustment(hotelId: string, entryType: string, description: string, amount: number) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/finance/admin/billing/adjustments`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hotelId, entryType, description, amount }),
+  });
+  return res.json();
+}
+
+export async function getBankAccounts(hotelId: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/finance/partner/hotels/${hotelId}/bank-accounts`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return res.json();
+}
+
+export async function addBankAccount(hotelId: string, data: Record<string, unknown>) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/finance/partner/hotels/${hotelId}/bank-accounts`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}

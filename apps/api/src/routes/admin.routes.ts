@@ -99,3 +99,10 @@ adminRouter.patch('/partners/:userId/status', requirePermission(PERMISSIONS.ADMI
   const partner = await adminService.updatePartnerStatus(param(req.params.userId), status, req.user!.sub);
   sendSuccess(res, partner);
 });
+
+adminRouter.post('/payments/:paymentId/refund', requirePermission(PERMISSIONS.PAYMENT_REFUND), async (req: AuthRequest, res: Response) => {
+  const { paymentService } = await import('../services/payment.service');
+  const { amount } = (req.body || {}) as { amount?: number };
+  const result = await paymentService.refundPayment(param(req.params.paymentId), req.user!.sub, amount);
+  sendSuccess(res, result);
+});

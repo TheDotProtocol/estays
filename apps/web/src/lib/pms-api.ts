@@ -65,3 +65,41 @@ export async function markRoomClean(hotelId: string, roomId: string) {
   });
   return res.json();
 }
+
+export async function createWalkIn(hotelId: string, data: Record<string, unknown>) {
+  const res = await fetch(`${API_URL}/pms/hotels/${hotelId}/walk-in`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function markNoShow(hotelId: string, bookingId: string) {
+  const res = await fetch(`${API_URL}/pms/hotels/${hotelId}/no-show`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ bookingId }),
+  });
+  return res.json();
+}
+
+export function folioReceiptUrl(hotelId: string, bookingId: string) {
+  const token = getToken();
+  return `${API_URL}/pms/hotels/${hotelId}/bookings/${bookingId}/folio/receipt.pdf${token ? `?token=${token}` : ''}`;
+}
+
+export async function downloadFolioReceipt(hotelId: string, bookingId: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/pms/hotels/${hotelId}/bookings/${bookingId}/folio/receipt.pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `folio-${bookingId}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

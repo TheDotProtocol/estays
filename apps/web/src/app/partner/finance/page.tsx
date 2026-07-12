@@ -10,6 +10,8 @@ import {
   getSettlementDetail,
   settlePayment,
   downloadSettlementDocument,
+  getBankAccounts,
+  addBankAccount,
 } from '@/lib/finance-api';
 import { useCurrency } from '@/lib/currency';
 import { PartnerNav } from '@/components/PartnerNav';
@@ -37,6 +39,8 @@ export default function PartnerFinancePage() {
   const [settling, setSettling] = useState(false);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [bankAccounts, setBankAccounts] = useState<Record<string, unknown>[]>([]);
+  const [bankForm, setBankForm] = useState({ bankName: '', accountName: '', accountNumber: '', ifscCode: '', isPrimary: true });
 
   useEffect(() => {
     const user = getStoredUser() as { roles?: string[] } | null;
@@ -55,12 +59,14 @@ export default function PartnerFinancePage() {
   }, [router]);
 
   const load = async (id: string) => {
-    const [sumRes, stlRes] = await Promise.all([
+    const [sumRes, stlRes, bankRes] = await Promise.all([
       getPartnerFinanceSummary(id),
       getPartnerSettlements(id),
+      getBankAccounts(id),
     ]);
     if (sumRes.success) setSummary(sumRes.data as Record<string, unknown>);
     if (stlRes.success) setSettlements((stlRes.data as Record<string, unknown>[]) || []);
+    if (bankRes.success) setBankAccounts((bankRes.data as Record<string, unknown>[]) || []);
   };
 
   useEffect(() => {
@@ -140,6 +146,29 @@ export default function PartnerFinancePage() {
               <p className="text-2xl font-bold text-navy mt-1">{c.value}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'overview' && (
+        <div className="bg-white rounded-xl border border-gold/10 p-5 mb-8">
+          <h3 className="font-semibold text-navy mb-3">Bank Account for Payouts</h3>
+          {bankAccounts.map((b) => (
+            <p key={b.id as string} className="text-sm text-navy/70 mb-1">
+              {b.bankName as string} · {b.accountName as string} · ****{(b.accountNumber as string).slice(-4)}
+              {b.isPrimary ? ' (Primary)' : ''}
+            </p>
+          ))}
+          <div className="grid sm:grid-cols-2 gap-2 mt-4">
+            <input placeholder="Bank name" value={bankForm.bankName} onChange={(e) => setBankForm((p) => ({ ...p, bankName: e.target.value }))} className="border rounded px-3 py-2 text-sm" />
+            <input placeholder="Account holder name" value={bankForm.accountName} onChange={(e) => setBankForm((p) => ({ ...p, accountName: e.target.value }))} className="border rounded px-3 py-2 text-sm" />
+            <input placeholder="Account number" value={bankForm.accountNumber} onChange={(e) => setBankForm((p) => ({ ...p, accountNumber: e.target.value }))} className="border rounded px-3 py-2 text-sm" />
+            <input placeholder="IFSC code" value={bankForm.ifscCode} onChange={(e) => setBankForm((p) => ({ ...p, ifscCode: e.target.value }))} className="border rounded px-3 py-2 text-sm" />
+          </div>
+          <button onClick={async () => {
+            const res = await addBankAccount(hotelId, bankForm);
+            setMsg(res.success ? 'Bank account saved' : res.error?.message || 'Failed');
+            if (res.success) load(hotelId);
+          }} className="mt-3 px-4 py-2 bg-navy text-white text-sm rounded-lg">Save Bank Account</button>
         </div>
       )}
 
