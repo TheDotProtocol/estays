@@ -1,8 +1,10 @@
 import path from 'path';
 import dotenv from 'dotenv';
+import { loadRenderSecretFiles } from './load-render-secrets';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+loadRenderSecretFiles();
 
 import { createApp } from './app';
 import { logger } from '@estays/logger';
