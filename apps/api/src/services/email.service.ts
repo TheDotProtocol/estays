@@ -44,7 +44,7 @@ export class EmailService {
     const transport = this.getTransporter();
     if (transport) {
       await transport.sendMail({
-        from: process.env.SMTP_FROM || process.env.EMAIL_FROM || 'noreply@estayshotels.com',
+        from: process.env.SMTP_FROM || process.env.EMAIL_FROM || `E Stays Hotels <${process.env.NOREPLY_EMAIL || 'noreply@estayshotels.com'}>`,
         to: email,
         subject,
         html,
@@ -64,6 +64,7 @@ export class EmailService {
     to: string;
     from: string;
     replyTo?: string;
+    bcc?: string | string[];
     subject: string;
     text: string;
     html?: string;
@@ -76,6 +77,7 @@ export class EmailService {
         from: opts.from,
         to: opts.to,
         replyTo: opts.replyTo,
+        bcc: opts.bcc,
         subject: opts.subject,
         text: opts.text,
         html,
@@ -85,7 +87,7 @@ export class EmailService {
           contentType: a.contentType,
         })),
       });
-      log.info({ to: opts.to, subject: opts.subject }, 'Email sent via SMTP');
+      log.info({ to: opts.to, bcc: opts.bcc, subject: opts.subject }, 'Email sent via SMTP');
     } else {
       log.info({ to: opts.to, subject: opts.subject }, 'Email (dev mode — check API logs)');
       console.log(`\n📧 Email to ${opts.to}: ${opts.subject}\n${opts.text}\n`);

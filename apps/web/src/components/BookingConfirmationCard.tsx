@@ -119,7 +119,7 @@ export function BookingConfirmationCard({ bookingId }: { bookingId: string }) {
       <div className="text-center mb-6">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 text-2xl mb-3">✓</div>
         <h1 className="font-display text-2xl font-semibold text-ink">Booking confirmed!</h1>
-        <p className="text-sm text-ink-muted mt-1">Confirmation sent from bookings@estayshotels.com</p>
+        <p className="text-sm text-ink-muted mt-1">Confirmation email sent from bookings@estayshotels.com</p>
       </div>
 
       <article className="bg-white rounded-2xl border border-surface-border shadow-card overflow-hidden">

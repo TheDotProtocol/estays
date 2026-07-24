@@ -2,6 +2,7 @@ import { userRepository } from '../repositories/user.repository';
 import { otpRepository } from '../repositories/otp.repository';
 import { auditRepository } from '../repositories/audit.repository';
 import { emailService } from './email.service';
+import { transactionalEmailService } from './transactional-email.service';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, getTokenExpirySeconds } from '../utils/helpers';
 import { AppError } from '../utils/app-error';
 import { AuthTokens, AuthUser, RegisterInput, LoginInput, WELCOME_BONUS_POINTS } from '@estays/shared';
@@ -110,6 +111,12 @@ export class AuthService {
     const tokens = await this.generateTokens(fullUser);
     await auditRepository.log({ userId: user.id, action: 'USER_REGISTERED', entityType: 'User', entityId: user.id, ipAddress });
     log.info({ userId: user.id }, 'Guest registered with email OTP');
+
+    void transactionalEmailService.sendWelcomeEmail({
+      to: fullUser.email,
+      guestName: `${fullUser.firstName} ${fullUser.lastName}`.trim(),
+      loyaltyPoints: fullUser.loyaltyPoints,
+    }).catch((err) => log.warn({ err, userId: user.id }, 'Welcome email failed'));
 
     return { user: this.buildAuthUser(fullUser), tokens };
   }

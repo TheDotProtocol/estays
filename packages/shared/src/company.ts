@@ -14,9 +14,11 @@ export const ESTAYS_COMPANY = {
   emails: {
     general: 'info@estayshotels.com',
     support: 'support@estayshotels.com',
-    partner: 'partner@estayshotels.com',
+    partner: 'partners@estayshotels.com',
     billing: 'billing@estayshotels.com',
     bookings: 'bookings@estayshotels.com',
+    welcome: 'welcome@estayshotels.com',
+    noreply: 'noreply@estayshotels.com',
   },
   phone: '1-800-ESTAYS',
   website: 'https://estayshotels.com',

@@ -36,8 +36,12 @@ services:
         value: https://www.estayshotels.com
       - key: EMAIL_FROM
         value: noreply@estayshotels.com
+      - key: WELCOME_EMAIL_FROM
+        value: E Stays Hotels <welcome@estayshotels.com>
       - key: BOOKINGS_EMAIL_FROM
         value: E Stays Bookings <bookings@estayshotels.com>
+      - key: BOOKINGS_BCC
+        value: bookings@estayshotels.com
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_PUBLISHABLE_KEY
