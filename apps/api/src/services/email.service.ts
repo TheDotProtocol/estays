@@ -66,10 +66,11 @@ export class EmailService {
     replyTo?: string;
     subject: string;
     text: string;
+    html?: string;
     attachments?: { filename: string; content: Buffer; contentType: string }[];
   }): Promise<void> {
     const transport = this.getTransporter();
-    const html = opts.text.replace(/\n/g, '<br>');
+    const html = opts.html || opts.text.replace(/\n/g, '<br>');
     if (transport) {
       await transport.sendMail({
         from: opts.from,

@@ -532,6 +532,7 @@ export class PmsService {
       to: input.guestEmail,
       guestName: `${input.guestFirstName} ${input.guestLastName}`,
       bookingNumber,
+      bookingId: booking.id,
       hotelName: booking.hotel.name,
       checkIn: input.checkInDate,
       checkOut: input.checkOutDate,

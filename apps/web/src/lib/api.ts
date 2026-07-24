@@ -428,6 +428,40 @@ export async function confirmStripePayment(params: {
   });
 }
 
+export async function getBookingVoucher(bookingId: string) {
+  return api<Record<string, unknown>>(`/bookings/${bookingId}/voucher`);
+}
+
+export async function downloadBookingVoucherPdf(bookingId: string, filename: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/bookings/${bookingId}/voucher.pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadBookingVoucherQr(bookingId: string, filename: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/bookings/${bookingId}/voucher-qr.png`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function createRazorpayOrder(
   bookingId: string,
   currency: string,

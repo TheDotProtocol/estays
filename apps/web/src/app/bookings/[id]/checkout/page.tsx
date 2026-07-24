@@ -114,9 +114,14 @@ export default function CheckoutPage() {
     getStripeConfig().then((res) => {
       if (res.success && res.data) {
         const data = res.data as { enabled?: boolean; publishableKey?: string };
-        setStripeEnabled(Boolean(data.enabled && data.publishableKey));
-        if (data.publishableKey) {
-          setStripePromise(loadStripe(data.publishableKey));
+        const pk = data.publishableKey || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+        setStripeEnabled(Boolean(data.enabled && pk));
+        if (pk) setStripePromise(loadStripe(pk));
+      } else {
+        const pk = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
+        if (pk) {
+          setStripeEnabled(true);
+          setStripePromise(loadStripe(pk));
         }
       }
     });
@@ -207,6 +212,10 @@ export default function CheckoutPage() {
     [payer, router]
   );
 
+  const goToConfirmation = useCallback(() => {
+    router.replace(`/bookings/${bookingId}/confirmation`);
+  }, [bookingId, router]);
+
   const handleSelectMethod = async (method: PaymentMethod) => {
     setSelectedMethod(method);
     setError('');
@@ -218,12 +227,21 @@ export default function CheckoutPage() {
 
     setProcessing(true);
 
-    if (method === 'STRIPE' && stripeEnabled) {
+    if (method === 'STRIPE') {
       const res = await createStripeIntent(bookingId, currency, payer);
-      if (res.success) {
-        setPayment(res.data as Record<string, unknown>);
+      if (res.success && res.data) {
+        const data = res.data as Record<string, unknown>;
+        const pk = (data.publishableKey as string) || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        if (pk && !stripePromise) {
+          setStripePromise(loadStripe(pk));
+        }
+        setStripeEnabled(true);
+        setPayment(data);
       } else {
-        setError(res.error?.message || 'Could not start card checkout');
+        setError(
+          res.error?.message ||
+            'Card payments are not available yet. Please use Pay at Hotel or contact bookings@estayshotels.com.'
+        );
         setSelectedMethod(null);
       }
       setProcessing(false);
@@ -234,8 +252,7 @@ export default function CheckoutPage() {
     if (res.success) {
       setPayment(res.data as Record<string, unknown>);
       if (method === 'PAY_AT_HOTEL') {
-        setSuccess(true);
-        setTimeout(() => router.push('/bookings'), 2500);
+        goToConfirmation();
       }
     } else {
       setError(res.error?.message || 'Payment initiation failed');
@@ -249,8 +266,7 @@ export default function CheckoutPage() {
     setProcessing(true);
     const res = await confirmPayment(payment.paymentId as string);
     if (res.success) {
-      setSuccess(true);
-      setTimeout(() => router.push('/bookings'), 2500);
+      goToConfirmation();
     } else {
       setError(res.error?.message || 'Confirmation failed');
     }
@@ -261,17 +277,8 @@ export default function CheckoutPage() {
   if (!booking) return <div className="text-center py-20 text-red-500">{error || 'Booking not found'}</div>;
 
   if (success) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <div className="text-5xl mb-4">✓</div>
-        <h1 className="font-display text-2xl font-bold text-navy">Booking Confirmed!</h1>
-        <p className="text-navy/60 mt-2">
-          {selectedMethod === 'PAY_AT_HOTEL'
-            ? 'Pay when you arrive at the hotel.'
-            : 'Payment received. Redirecting...'}
-        </p>
-      </div>
-    );
+    goToConfirmation();
+    return <div className="text-center py-20 text-navy/50">Redirecting to confirmation…</div>;
   }
 
   const hotel = booking.hotel as Record<string, unknown>;
@@ -334,48 +341,58 @@ export default function CheckoutPage() {
           </div>
         )}
 
-        {step === 'payment' && !payment && (
+        {step === 'payment' && (
           <div className="space-y-5">
-            <button onClick={() => setStep('details')} className="text-sm text-gold hover:underline">← Edit details</button>
-            <h3 className="font-semibold text-navy text-sm">Choose Payment Method</h3>
-            {razorpayEnabled && !razorpayReady && (
-              <p className="text-xs text-navy/50">Loading secure payment gateway...</p>
-            )}
-            {PAYMENT_GROUPS.map((group) => (
-              <div key={group.title}>
-                <p className="text-xs font-medium text-navy/50 uppercase tracking-wide mb-2">{group.title}</p>
-                <div className="space-y-2">
-                  {group.methods.map((m) => (
-                    <button key={m.id} onClick={() => handleSelectMethod(m.id)} disabled={processing}
-                      className={`w-full text-left p-4 rounded-xl border transition ${
-                        selectedMethod === m.id ? 'border-coral bg-coral/5' : 'border-gold/10 bg-white hover:border-gold/30'
-                      } disabled:opacity-50`}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{m.icon}</span>
-                        <div>
-                          <div className="font-medium text-navy text-sm">{m.label}</div>
-                          <div className="text-xs text-navy/50">{m.desc}</div>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {selectedMethod && QR_PAYMENT_METHODS.includes(selectedMethod) && (
-              <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">
-                <p className="font-semibold mb-1">Coming soon</p>
-                <p className="text-amber-900/90">
-                  UPI, Alipay, and Thai QR / PromptPay are not available yet. Please use{' '}
-                  <strong>Credit / Debit Card</strong> to complete your booking for now.
-                </p>
-              </div>
+            {!payment && (
+              <>
+                <button onClick={() => setStep('details')} className="text-sm text-gold hover:underline">← Edit details</button>
+                <h3 className="font-semibold text-navy text-sm">Choose Payment Method</h3>
+                {!stripeEnabled && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Card checkout requires Stripe on the server. If card payment fails, use Pay at Hotel or email bookings@estayshotels.com.
+                  </p>
+                )}
+                {razorpayEnabled && !razorpayReady && (
+                  <p className="text-xs text-navy/50">Loading secure payment gateway...</p>
+                )}
+                {PAYMENT_GROUPS.map((group) => (
+                  <div key={group.title}>
+                    <p className="text-xs font-medium text-navy/50 uppercase tracking-wide mb-2">{group.title}</p>
+                    <div className="space-y-2">
+                      {group.methods.map((m) => (
+                        <button key={m.id} onClick={() => handleSelectMethod(m.id)} disabled={processing}
+                          className={`w-full text-left p-4 rounded-xl border transition ${
+                            selectedMethod === m.id ? 'border-coral bg-coral/5' : 'border-gold/10 bg-white hover:border-gold/30'
+                          } disabled:opacity-50`}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">{m.icon}</span>
+                            <div>
+                              <div className="font-medium text-navy text-sm">{m.label}</div>
+                              <div className="text-xs text-navy/50">{m.desc}</div>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {selectedMethod && QR_PAYMENT_METHODS.includes(selectedMethod) && (
+                  <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-950">
+                    <p className="font-semibold mb-1">Coming soon</p>
+                    <p className="text-amber-900/90">
+                      UPI, Alipay, and Thai QR / PromptPay are not available yet. Please use{' '}
+                      <strong>Credit / Debit Card</strong> to complete your booking for now.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
 
         {payment?.clientSecret && stripePromise ? (
-          <div className="bg-white rounded-2xl border border-surface-border p-6">
+          <div className="bg-white rounded-2xl border border-surface-border p-6 mt-4">
+            <p className="text-sm font-semibold text-navy mb-1">Pay with card</p>
             <p className="text-sm text-ink-muted mb-4">Enter your card details securely via Stripe.</p>
             <Elements
               stripe={stripePromise}
@@ -387,10 +404,7 @@ export default function CheckoutPage() {
               <StripeCheckoutForm
                 paymentId={payment.paymentId as string}
                 paymentIntentId={payment.paymentIntentId as string}
-                onSuccess={() => {
-                  setSuccess(true);
-                  setTimeout(() => router.push('/bookings'), 2500);
-                }}
+                onSuccess={goToConfirmation}
                 onCancel={() => {
                   setPayment(null);
                   setSelectedMethod(null);
@@ -419,8 +433,8 @@ export default function CheckoutPage() {
           </div>
         ) : null}
 
-        {processing && selectedMethod === 'STRIPE' && stripeEnabled && (
-          <p className="text-sm text-navy/50 text-center mt-4">Loading secure card checkout...</p>
+        {processing && selectedMethod === 'STRIPE' && !payment?.clientSecret && (
+          <p className="text-sm text-navy/50 text-center mt-4">Loading secure card checkout…</p>
         )}
 
         {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}

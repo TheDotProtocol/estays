@@ -12,6 +12,9 @@ import { createChildLogger } from '@estays/logger';
 import { loyaltyService } from './loyalty.service';
 import { hotelEventBus } from '../lib/event-bus';
 import { transactionalEmailService } from './transactional-email.service';
+import { bookingToVoucherData, type BookingVoucherData } from './booking-voucher.service';
+import { generateBookingVoucherPdf } from './booking-voucher-pdf.service';
+import { generateVoucherQrPng } from './booking-voucher.service';
 
 const log = createChildLogger('booking-service');
 
@@ -194,7 +197,9 @@ export class BookingService {
         hotelName: booking.hotel.name,
         checkIn: booking.checkInDate.toISOString().slice(0, 10),
         checkOut: booking.checkOutDate.toISOString().slice(0, 10),
-        totalAmount: parseDecimal(booking.totalAmount).toFixed(2),
+        totalAmount: `${booking.currency} ${parseDecimal(booking.totalAmount).toFixed(2)}`,
+        bookingId,
+        currency: booking.currency,
       });
     }
 
@@ -291,6 +296,32 @@ export class BookingService {
       page: filters.page,
       limit: filters.limit,
     });
+  }
+
+  private assertVoucherAccess(booking: { guestId: string; status: string }, userId: string, roles: string[]) {
+    if (!['CONFIRMED', 'CHECKED_IN', 'COMPLETED', 'CHECKED_OUT'].includes(booking.status)) {
+      throw AppError.badRequest('Voucher available after booking is confirmed');
+    }
+    const isAdmin = roles.some((r) => ['SUPER_ADMIN', 'ADMIN'].includes(r));
+    if (isAdmin || booking.guestId === userId) return;
+    throw AppError.forbidden('No access to this voucher');
+  }
+
+  async getVoucherData(bookingId: string, userId: string, roles: string[]): Promise<BookingVoucherData> {
+    const booking = await bookingRepository.findById(bookingId);
+    if (!booking) throw AppError.notFound('Booking');
+    this.assertVoucherAccess(booking, userId, roles);
+    return bookingToVoucherData(booking);
+  }
+
+  async getVoucherPdf(bookingId: string, userId: string, roles: string[]): Promise<Buffer> {
+    const data = await this.getVoucherData(bookingId, userId, roles);
+    return generateBookingVoucherPdf(data);
+  }
+
+  async getVoucherQrPng(bookingId: string, userId: string, roles: string[]): Promise<Buffer> {
+    const data = await this.getVoucherData(bookingId, userId, roles);
+    return generateVoucherQrPng(data);
   }
 }
 

@@ -66,6 +66,37 @@ bookingRouter.get('/:bookingId', authenticate, async (req: AuthRequest, res: Res
   sendSuccess(res, booking);
 });
 
+bookingRouter.get('/:bookingId/voucher', authenticate, async (req: AuthRequest, res: Response) => {
+  const data = await bookingService.getVoucherData(
+    param(req.params.bookingId),
+    req.user!.sub,
+    req.user!.roles
+  );
+  sendSuccess(res, data);
+});
+
+bookingRouter.get('/:bookingId/voucher.pdf', authenticate, async (req: AuthRequest, res: Response) => {
+  const pdf = await bookingService.getVoucherPdf(
+    param(req.params.bookingId),
+    req.user!.sub,
+    req.user!.roles
+  );
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="estays-${param(req.params.bookingId)}.pdf"`);
+  res.send(pdf);
+});
+
+bookingRouter.get('/:bookingId/voucher-qr.png', authenticate, async (req: AuthRequest, res: Response) => {
+  const png = await bookingService.getVoucherQrPng(
+    param(req.params.bookingId),
+    req.user!.sub,
+    req.user!.roles
+  );
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.send(png);
+});
+
 bookingRouter.post(
   '/:bookingId/cancel',
   authenticate,

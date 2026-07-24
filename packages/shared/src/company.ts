@@ -16,6 +16,7 @@ export const ESTAYS_COMPANY = {
     support: 'support@estayshotels.com',
     partner: 'partner@estayshotels.com',
     billing: 'billing@estayshotels.com',
+    bookings: 'bookings@estayshotels.com',
   },
   phone: '1-800-ESTAYS',
   website: 'https://estayshotels.com',

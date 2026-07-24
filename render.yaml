@@ -28,8 +28,30 @@ services:
         value: /var/data/uploads
       - key: SETTLEMENT_DOCS_DIR
         value: /var/data/uploads/settlements
+      - key: WEB_URL
+        value: https://www.estayshotels.com
+      - key: API_PUBLIC_URL
+        value: https://estays-api.onrender.com
+      - key: CORS_ORIGIN
+        value: https://www.estayshotels.com
       - key: EMAIL_FROM
         value: noreply@estayshotels.com
+      - key: BOOKINGS_EMAIL_FROM
+        value: E Stays Bookings <bookings@estayshotels.com>
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
     disk:
       name: estays-uploads
       mountPath: /var/data/uploads
