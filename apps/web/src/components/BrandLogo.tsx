@@ -30,11 +30,11 @@ export function BrandLogo({
       />
       {showText && (
         <div className="hidden sm:block leading-tight">
-          <span className={`font-display font-bold ${variant === 'light' ? 'text-white' : 'text-navy'}`}>
+          <span className={`font-display font-bold ${variant === 'light' ? 'text-white' : 'text-ink'}`}>
             E Stays Hotels
           </span>
           {subtitle && (
-            <p className={`text-xs -mt-0.5 ${variant === 'light' ? 'text-gold' : 'text-gold'}`}>{subtitle}</p>
+            <p className={`text-xs -mt-0.5 ${variant === 'light' ? 'text-white/80' : 'text-ink-muted'}`}>{subtitle}</p>
           )}
         </div>
       )}

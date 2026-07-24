@@ -1,0 +1,79 @@
+primary_categories:
+  - Rooms
+  - Bathroom
+  - Exterior
+  - Lobby
+  - Reception
+  - Swimming Pool
+  - Restaurant
+  - Bar
+  - Beach
+  - Garden
+  - Spa
+  - Gym
+  - Kids Area
+  - Conference Room
+  - Parking
+  - Corridor
+  - Balcony
+  - View
+  - Dining
+  - Breakfast
+  - Cafe
+  - Common Area
+  - Unknown
+
+room_types:
+  - Standard Room
+  - Superior Room
+  - Deluxe Room
+  - Executive Room
+  - Suite
+  - Family Room
+  - Twin Room
+  - Double Room
+  - Queen Room
+  - King Room
+  - Villa
+  - Bungalow
+  - Dormitory
+  - Studio
+  - Apartment
+  - Unknown Room
+
+facility_types:
+  - Pool
+  - Restaurant
+  - Spa
+  - Gym
+  - Lobby
+  - Reception
+  - Cafe
+  - Kids Play Area
+  - Business Center
+  - Conference Hall
+  - Laundry
+  - Parking
+  - Beach Access
+  - Garden
+  - Terrace
+  - Rooftop
+  - Bar
+  - Breakfast
+  - Exterior
+  - Landscape
+
+quality:
+  min_width: 400
+  min_height: 300
+  min_file_bytes: 15000
+  max_aspect_ratio: 4.0
+  blur_threshold: 80.0
+
+dedupe:
+  phash_hamming_threshold: 8
+  clip_cosine_threshold: 0.97
+
+license_note: >
+  Images collected from publicly accessible OTA listing pages and official hotel websites
+  for internal cataloging and classification. Verify licensing before commercial use.

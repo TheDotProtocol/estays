@@ -6,7 +6,7 @@ export const metadata = { title: 'FAQs — E Stays Hotels' };
 const faqs = [
   { q: 'How do I book a hotel on E Stays?', a: 'Search for your destination and dates on the homepage, select a hotel, choose your room type, and complete the booking with payment. You\'ll receive a confirmation email with your booking reference.' },
   { q: 'Can I cancel my booking?', a: 'Yes, if your rate plan allows cancellation. Check your booking details under My Bookings for the cancellation deadline. See our Refund Policy for full terms.' },
-  { q: 'What payment methods are accepted?', a: 'Pay at Hotel (no online payment), UPI for India (GPay, PhonePe, Paytm), Alipay for Thailand, and Thai QR / PromptPay. Scan the QR code at checkout to pay instantly.' },
+  { q: 'What payment methods are accepted?', a: 'Pay at Hotel, UPI for India (GPay, PhonePe, Paytm), Alipay for Thailand, and Thai QR / PromptPay. Scan the QR code at checkout to pay instantly.' },
   { q: 'How do I list my hotel on E Stays?', a: 'Sign in to the Partner Portal and click "+ Add Hotel" to submit your property for admin approval. Once approved, you can upload photos, set pricing, and manage inventory.' },
   { q: 'Is my payment information secure?', a: 'Yes. Online payments use secure QR-based systems (UPI, Alipay, PromptPay). E Stays does not store payment credentials on our servers.' },
   { q: 'How do I contact customer support?', a: `Email ${COMPANY.emails.support} or call ${COMPANY.phone}. Our team typically responds within 24 hours.` },

@@ -80,6 +80,16 @@ async function refreshAccessToken(): Promise<boolean> {
   return false;
 }
 
+/** Restore access token from refresh token, or clear stale cached user. */
+export async function ensureAuthSession(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (getToken()) return true;
+  const refreshed = await refreshAccessToken();
+  if (refreshed) return true;
+  if (getStoredUser()) clearTokens();
+  return false;
+}
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
@@ -99,6 +109,7 @@ export async function api<T>(
     if (allowRefresh && res.status === 401 && data.error?.code === 'INVALID_TOKEN') {
       const refreshed = await refreshAccessToken();
       if (refreshed) return api<T>(path, options, false);
+      clearTokens();
     }
 
     return data;
@@ -122,6 +133,10 @@ export async function login(email: string, password: string) {
 export async function searchHotels(params: Record<string, string>) {
   const qs = new URLSearchParams(params).toString();
   return api<unknown[]>(`/hotels/search?${qs}`);
+}
+
+export async function getFeaturedHotels(currency = 'INR', limit = '50') {
+  return api<unknown[]>(`/hotels/featured?currency=${currency}&limit=${limit}`);
 }
 
 export async function searchLocations(query: string, country?: string) {
@@ -264,6 +279,7 @@ async function uploadWithAuth(path: string, formData: FormData, allowRefresh = t
     if (allowRefresh && res.status === 401 && data.error?.code === 'INVALID_TOKEN') {
       const refreshed = await refreshAccessToken();
       if (refreshed) return uploadWithAuth(path, formData, false);
+      clearTokens();
     }
 
     return data;
@@ -381,6 +397,58 @@ export async function initiatePayment(
 
 export async function confirmPayment(paymentId: string) {
   return api(`/payments/${paymentId}/confirm`, { method: 'POST' });
+}
+
+export async function getRazorpayConfig() {
+  return api('/payments/razorpay/config');
+}
+
+export async function getStripeConfig() {
+  return api('/payments/stripe/config');
+}
+
+export async function createStripeIntent(
+  bookingId: string,
+  currency: string,
+  payer: { payerName: string; payerEmail: string; payerPhone?: string }
+) {
+  return api('/payments/stripe/create-intent', {
+    method: 'POST',
+    body: JSON.stringify({ bookingId, currency, ...payer }),
+  });
+}
+
+export async function confirmStripePayment(params: {
+  paymentId: string;
+  paymentIntentId: string;
+}) {
+  return api('/payments/stripe/confirm', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function createRazorpayOrder(
+  bookingId: string,
+  currency: string,
+  payer: { payerName: string; payerEmail: string; payerPhone?: string }
+) {
+  return api('/payments/razorpay/create-order', {
+    method: 'POST',
+    body: JSON.stringify({ bookingId, currency, ...payer }),
+  });
+}
+
+export async function verifyRazorpayPayment(data: {
+  paymentId: string;
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}) {
+  return api('/payments/razorpay/verify', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function getNotifications() {

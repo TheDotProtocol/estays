@@ -11,6 +11,7 @@ import {
   paginationSchema,
   PERMISSIONS,
 } from '@estays/shared';
+import { asyncHandler } from '../utils/async-handler';
 
 export const bookingRouter = Router();
 
@@ -19,10 +20,10 @@ bookingRouter.post(
   authenticate,
   requirePermission(PERMISSIONS.BOOKING_CREATE),
   validate(createBookingSchema),
-  async (req: AuthRequest, res: Response) => {
+  asyncHandler(async (req: AuthRequest, res: Response) => {
     const booking = await bookingService.createBooking(req.user!.sub, req.body);
     sendCreated(res, booking);
-  }
+  })
 );
 
 bookingRouter.get(

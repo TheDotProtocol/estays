@@ -9,7 +9,7 @@ export function CurrencySelector({ className = '' }: { className?: string }) {
     <select
       value={currency}
       onChange={(e) => setCurrency(e.target.value)}
-      className={`text-sm bg-transparent border border-gold/30 rounded-lg px-2 py-1 text-navy cursor-pointer hover:border-gold transition ${className}`}
+      className={`text-sm bg-transparent border border-surface-border rounded-lg px-2 py-1 text-ink cursor-pointer hover:border-ink transition ${className}`}
       aria-label="Select currency"
     >
       {currencies.map((c) => (

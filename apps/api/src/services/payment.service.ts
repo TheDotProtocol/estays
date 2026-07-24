@@ -9,10 +9,21 @@ import { createChildLogger } from '@estays/logger';
 import { convertFromUSD, CURRENCIES, PAYMENT_REGIONS } from '@estays/shared';
 import { bookingFinanceService } from './booking-finance.service';
 import { hotelEventBus } from '../lib/event-bus';
+import {
+  createRazorpayOrder,
+  isRazorpayConfigured,
+  verifyRazorpaySignature,
+} from './razorpay.service';
+import {
+  createStripePaymentIntent,
+  getStripePublishableKey,
+  isStripeConfigured,
+  retrieveStripePaymentIntent,
+} from './stripe.service';
 
 const log = createChildLogger('payment-service');
 
-type PaymentMethodType = 'UPI' | 'ALIPAY' | 'THAI_QR' | 'PAY_AT_HOTEL';
+type PaymentMethodType = 'UPI' | 'ALIPAY' | 'THAI_QR' | 'PAY_AT_HOTEL' | 'STRIPE';
 
 function buildUpiPayload(bookingNumber: string, amountInr: number): string {
   const { upiId, merchantName } = PAYMENT_REGIONS.INDIA;
@@ -102,6 +113,10 @@ export class PaymentService {
     let qrPayload = '';
     let qrLabel = '';
 
+    if (method === 'UPI' && isRazorpayConfigured()) {
+      return this.createRazorpayCheckoutOrder(bookingId, userId, displayCurrency, payer);
+    }
+
     if (method === 'UPI') {
       const amountInr = convertFromUSD(amountUsd, 'INR');
       qrPayload = buildUpiPayload(booking.bookingNumber, amountInr);
@@ -147,12 +162,342 @@ export class PaymentService {
     };
   }
 
+  async createRazorpayCheckoutOrder(
+    bookingId: string,
+    userId: string,
+    displayCurrency = 'USD',
+    payer?: { payerName: string; payerEmail: string; payerPhone?: string }
+  ) {
+    const booking = await bookingRepository.findById(bookingId);
+    if (!booking) throw AppError.notFound('Booking');
+    if (booking.guestId !== userId) throw AppError.forbidden('Not your booking');
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      throw AppError.badRequest('Booking is not awaiting payment');
+    }
+
+    const amountUsd = parseDecimal(booking.totalAmount);
+    const amountInr = convertFromUSD(amountUsd, 'INR');
+    const amountPaise = Math.max(100, Math.round(amountInr * 100));
+
+    const order = await createRazorpayOrder({
+      amountPaise,
+      currency: 'INR',
+      receipt: booking.bookingNumber,
+      notes: {
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        guestId: userId,
+      },
+    });
+
+    const payment = await paymentRepository.create({
+      bookingId,
+      amount: amountUsd,
+      currency: booking.currency,
+      method: 'UPI',
+      status: 'PENDING',
+      description: `Razorpay UPI payment for ${booking.bookingNumber}`,
+      payerName: payer?.payerName,
+      payerEmail: payer?.payerEmail,
+      payerPhone: payer?.payerPhone,
+      refundMethod: 'UPI',
+      stripeIntentId: order.orderId,
+      metadata: {
+        razorpay: true,
+        orderId: order.orderId,
+        amountPaise: order.amount,
+        displayCurrency,
+        displayAmount: amountInr,
+      },
+    });
+
+    return {
+      paymentId: payment.id,
+      method: 'UPI',
+      provider: 'RAZORPAY',
+      orderId: order.orderId,
+      amount: order.amount,
+      currency: order.currency,
+      keyId: order.keyId,
+      displayAmount: amountInr,
+      displayCurrency: 'INR',
+      currencySymbol: CURRENCIES.INR.symbol,
+      bookingNumber: booking.bookingNumber,
+    };
+  }
+
+  async verifyRazorpayPayment(
+    paymentId: string,
+    userId: string,
+    params: {
+      razorpay_order_id: string;
+      razorpay_payment_id: string;
+      razorpay_signature: string;
+    }
+  ) {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = params;
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      throw AppError.badRequest('Missing Razorpay payment verification fields');
+    }
+
+    const payment = await paymentRepository.findById(paymentId);
+    if (!payment) throw AppError.notFound('Payment');
+    if (payment.booking.guestId !== userId) throw AppError.forbidden('Not your payment');
+    if (payment.status === 'CAPTURED') {
+      return { payment, booking: payment.booking, alreadyPaid: true };
+    }
+    if (payment.stripeIntentId !== razorpay_order_id) {
+      throw AppError.badRequest('Order ID does not match payment record');
+    }
+
+    const valid = verifyRazorpaySignature({
+      orderId: razorpay_order_id,
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+    });
+    if (!valid) {
+      throw AppError.badRequest('Invalid payment signature');
+    }
+
+    const updatedPayment = await paymentRepository.update(paymentId, {
+      status: 'CAPTURED',
+      stripePaymentId: razorpay_payment_id,
+      processedAt: new Date(),
+    });
+
+    const booking = await bookingService.confirmBooking(
+      payment.bookingId,
+      parseDecimal(payment.amount)
+    );
+
+    await auditRepository.log({
+      userId,
+      hotelId: booking.hotelId,
+      action: 'RAZORPAY_PAYMENT_CONFIRMED',
+      entityType: 'Payment',
+      entityId: paymentId,
+      newData: {
+        method: payment.method,
+        amount: parseDecimal(payment.amount),
+        razorpayPaymentId: razorpay_payment_id,
+      },
+    });
+
+    log.info({ paymentId, razorpayPaymentId: razorpay_payment_id }, 'Razorpay payment verified');
+
+    hotelEventBus.publish({
+      hotelId: booking.hotelId,
+      type: 'payment.captured',
+      timestamp: new Date().toISOString(),
+      data: { paymentId, method: payment.method, provider: 'RAZORPAY' },
+    });
+
+    await bookingFinanceService.recordFromPayment(
+      payment.bookingId,
+      paymentId,
+      payment.method,
+      'CAPTURED',
+      userId
+    );
+
+    await notificationRepository.create({
+      userId,
+      type: 'BOOKING_CONFIRMED',
+      title: 'Booking Confirmed',
+      message: `Payment received for booking ${booking.bookingNumber}.`,
+      bookingId: payment.bookingId,
+    });
+
+    return { payment: updatedPayment, booking, alreadyPaid: false };
+  }
+
+  async createStripeCheckoutIntent(
+    bookingId: string,
+    userId: string,
+    displayCurrency = 'INR',
+    payer?: { payerName: string; payerEmail: string; payerPhone?: string }
+  ) {
+    if (!isStripeConfigured()) {
+      throw AppError.badRequest('Card payments are not configured');
+    }
+
+    const booking = await bookingRepository.findById(bookingId);
+    if (!booking) throw AppError.notFound('Booking');
+    if (booking.guestId !== userId) throw AppError.forbidden('Not your booking');
+    if (!['PENDING', 'CONFIRMED'].includes(booking.status)) {
+      throw AppError.badRequest('Booking is not awaiting payment');
+    }
+
+    const amountUsd = parseDecimal(booking.totalAmount);
+    const currency = CURRENCIES[displayCurrency] ? displayCurrency : 'INR';
+    const displayAmount = convertFromUSD(amountUsd, currency);
+    const amountMinor = Math.max(
+      currency === 'JPY' ? 1 : 100,
+      Math.round(displayAmount * (currency === 'JPY' ? 1 : 100))
+    );
+
+    const intent = await createStripePaymentIntent({
+      amountMinor,
+      currency,
+      bookingId,
+      bookingNumber: booking.bookingNumber,
+      guestEmail: payer?.payerEmail || '',
+      guestName: payer?.payerName,
+    });
+
+    const payment = await paymentRepository.create({
+      bookingId,
+      amount: amountUsd,
+      currency: booking.currency,
+      method: 'STRIPE',
+      status: 'PENDING',
+      description: `Stripe payment for ${booking.bookingNumber}`,
+      payerName: payer?.payerName,
+      payerEmail: payer?.payerEmail,
+      payerPhone: payer?.payerPhone,
+      refundMethod: 'STRIPE',
+      stripeIntentId: intent.id,
+      metadata: {
+        stripe: true,
+        paymentIntentId: intent.id,
+        displayCurrency: currency,
+        displayAmount,
+        clientSecret: intent.client_secret,
+      },
+    });
+
+    return {
+      paymentId: payment.id,
+      method: 'STRIPE',
+      provider: 'STRIPE',
+      clientSecret: intent.client_secret,
+      paymentIntentId: intent.id,
+      publishableKey: getStripePublishableKey(),
+      displayAmount,
+      displayCurrency: currency,
+      currencySymbol: CURRENCIES[currency].symbol,
+      bookingNumber: booking.bookingNumber,
+    };
+  }
+
+  async confirmStripePayment(paymentId: string, userId: string, paymentIntentId: string) {
+    if (!isStripeConfigured()) {
+      throw AppError.badRequest('Card payments are not configured');
+    }
+
+    const payment = await paymentRepository.findById(paymentId);
+    if (!payment) throw AppError.notFound('Payment');
+    if (payment.booking.guestId !== userId) throw AppError.forbidden('Not your payment');
+    if (payment.status === 'CAPTURED') {
+      return { payment, booking: payment.booking, alreadyPaid: true };
+    }
+    if (payment.stripeIntentId !== paymentIntentId) {
+      throw AppError.badRequest('Payment intent does not match payment record');
+    }
+
+    const intent = await retrieveStripePaymentIntent(paymentIntentId);
+    if (intent.status !== 'succeeded') {
+      throw AppError.badRequest(`Payment not completed (status: ${intent.status})`);
+    }
+
+    const updatedPayment = await paymentRepository.update(paymentId, {
+      status: 'CAPTURED',
+      stripePaymentId: intent.latest_charge as string | undefined,
+      processedAt: new Date(),
+    });
+
+    const booking = await bookingService.confirmBooking(
+      payment.bookingId,
+      parseDecimal(payment.amount)
+    );
+
+    await auditRepository.log({
+      userId,
+      hotelId: booking.hotelId,
+      action: 'STRIPE_PAYMENT_CONFIRMED',
+      entityType: 'Payment',
+      entityId: paymentId,
+      newData: {
+        method: payment.method,
+        amount: parseDecimal(payment.amount),
+        paymentIntentId,
+      },
+    });
+
+    hotelEventBus.publish({
+      hotelId: booking.hotelId,
+      type: 'payment.captured',
+      timestamp: new Date().toISOString(),
+      data: { paymentId, method: payment.method, provider: 'STRIPE' },
+    });
+
+    await bookingFinanceService.recordFromPayment(
+      payment.bookingId,
+      paymentId,
+      payment.method,
+      'CAPTURED',
+      userId
+    );
+
+    await notificationRepository.create({
+      userId,
+      type: 'BOOKING_CONFIRMED',
+      title: 'Booking Confirmed',
+      message: `Payment received for booking ${booking.bookingNumber}.`,
+      bookingId: payment.bookingId,
+    });
+
+    return { payment: updatedPayment, booking, alreadyPaid: false };
+  }
+
+  async handleStripeWebhookEvent(event: {
+    type: string;
+    data: { object: { id: string; status: string; latest_charge?: string | null } };
+  }) {
+    if (event.type !== 'payment_intent.succeeded') return { handled: false };
+
+    const intent = event.data.object;
+    const payment = await paymentRepository.findByIntentId(intent.id);
+    if (!payment || payment.status === 'CAPTURED') return { handled: true };
+
+    await paymentRepository.update(payment.id, {
+      status: 'CAPTURED',
+      stripePaymentId: intent.latest_charge as string | undefined,
+      processedAt: new Date(),
+    });
+
+    const booking = await bookingService.confirmBooking(
+      payment.bookingId,
+      parseDecimal(payment.amount)
+    );
+
+    await bookingFinanceService.recordFromPayment(
+      payment.bookingId,
+      payment.id,
+      payment.method,
+      'CAPTURED',
+      payment.booking.guestId
+    );
+
+    hotelEventBus.publish({
+      hotelId: booking.hotelId,
+      type: 'payment.captured',
+      timestamp: new Date().toISOString(),
+      data: { paymentId: payment.id, method: payment.method, provider: 'STRIPE' },
+    });
+
+    return { handled: true };
+  }
+
   async confirmQrPayment(paymentId: string, userId: string) {
     const payment = await paymentRepository.findById(paymentId);
     if (!payment) throw AppError.notFound('Payment');
     if (payment.booking.guestId !== userId) throw AppError.forbidden('Not your payment');
     if (payment.status === 'CAPTURED') {
       return { payment, booking: payment.booking, alreadyPaid: true };
+    }
+    if (payment.method === 'UPI' && isRazorpayConfigured()) {
+      throw AppError.badRequest('Use Razorpay verification for UPI payments');
     }
     if (!['UPI', 'ALIPAY', 'THAI_QR'].includes(payment.method)) {
       throw AppError.badRequest('Invalid payment method for QR confirmation');

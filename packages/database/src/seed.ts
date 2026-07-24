@@ -1,10 +1,11 @@
 import { PrismaClient, RoleName } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { PERMISSIONS, ROLE_PERMISSIONS } from '@estays/shared';
+import { AR_HOSPITALITY_PROPERTY_SLUGS, PERMISSIONS, ROLE_PERMISSIONS } from '@estays/shared';
 import { PROPERTIES } from './seed-properties';
 import { PROPERTY_IMAGES } from './seed-images';
-import { seedAdminDemoData } from './seed-admin-demo';
 import { seedFinanceData } from './seed-finance';
+import { importArListings } from './import-ar-listings';
+import { purgeDemoHotels, purgeDemoUsers } from './purge-demo';
 import { createManyInChunks, createSeedPrisma } from './seed-prisma';
 
 const prisma = createSeedPrisma();
@@ -92,60 +93,27 @@ async function seedAmenities() {
   }
 }
 
-async function getOrCreateUser(u: {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: RoleName;
-  partnerStatus?: 'PENDING_KYC' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
-  companyName?: string;
-}) {
-  let user = await prisma.user.findUnique({ where: { email: u.email } });
-  if (user) {
-    if (u.partnerStatus) {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { partnerStatus: u.partnerStatus, emailVerified: true },
-      });
-    }
-    return user;
-  }
+async function getOrCreateAdmin() {
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@estays.com';
+  const password = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'Admin123!';
 
-  const role = await prisma.role.findUnique({ where: { name: u.role } });
-  const passwordHash = await bcrypt.hash(u.password, 12);
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (user) return user;
+
+  const role = await prisma.role.findUnique({ where: { name: 'SUPER_ADMIN' } });
+  const passwordHash = await bcrypt.hash(password, 12);
 
   user = await prisma.user.create({
     data: {
-      email: u.email,
+      email,
       passwordHash,
-      firstName: u.firstName,
-      lastName: u.lastName,
+      firstName: 'Platform',
+      lastName: 'Admin',
       emailVerified: true,
-      loyaltyPoints: 0,
-      loyaltyTier: 'SILVER',
-      partnerStatus: u.partnerStatus,
-      companyName: u.companyName,
       roles: role ? { create: { roleId: role.id } } : undefined,
     },
   });
   return user;
-}
-
-async function seedUsers() {
-  console.log('Seeding marketing accounts...');
-  return {
-    admin: await getOrCreateUser({
-      email: 'admin@estays.com', password: 'Admin123!',
-      firstName: 'System', lastName: 'Administrator', role: 'SUPER_ADMIN',
-    }),
-    partner: await getOrCreateUser({
-      email: 'partner@estays.com', password: 'Partner123!',
-      firstName: 'James', lastName: 'Morrison', role: 'PARTNER',
-      partnerStatus: 'APPROVED',
-      companyName: 'E Stays Hotels LLC',
-    }),
-  };
 }
 
 async function seedHotelImages(hotelId: string, slug: string) {
@@ -169,8 +137,7 @@ async function seedHotelImages(hotelId: string, slug: string) {
 async function seedProperty(
   data: (typeof PROPERTIES)[0],
   ownerId: string,
-  adminId: string,
-  staff: { userId: string; title: string; isPrimary?: boolean }[]
+  adminId: string
 ) {
   const brandedName = brandPropertyName(data.name);
   const existing = await prisma.hotel.findUnique({ where: { slug: data.slug } });
@@ -187,15 +154,12 @@ async function seedProperty(
           latitude: data.latitude,
           longitude: data.longitude,
           googleMapsUrl: data.googleMapsUrl,
-          isDemo: true,
+          isDemo: false,
         },
       });
-      await seedHotelImages(existing.id, data.slug);
-      await seedHotelReviews(existing.id, data.slug);
       console.log(`  ↻ Updated: ${brandedName}`);
       return existing;
     }
-    // Partial seed from a prior failed run — remove and recreate.
     await prisma.hotel.delete({ where: { id: existing.id } });
   }
 
@@ -219,7 +183,7 @@ async function seedProperty(
       latitude: data.latitude,
       longitude: data.longitude,
       googleMapsUrl: data.googleMapsUrl,
-      isDemo: true,
+      isDemo: false,
       ownerId,
       approvedById: adminId,
       approvedAt: new Date(),
@@ -227,11 +191,7 @@ async function seedProperty(
       email: `info@${data.slug}.com`,
       amenities: { create: amenities.map((a) => ({ amenityId: a.id })) },
       staff: {
-        create: staff.map((s) => ({
-          userId: s.userId,
-          title: s.title,
-          isPrimary: s.isPrimary ?? false,
-        })),
+        create: [{ userId: ownerId, title: 'Platform Manager', isPrimary: true }],
       },
     },
   });
@@ -255,7 +215,7 @@ async function seedProperty(
         hotelId: hotel.id,
         roomTypeId: roomType.id,
         name: 'Best Available Rate',
-        description: 'Flexible rate with free cancellation',
+        description: 'Flexible rate — pay online or at hotel via E Stays',
         isRefundable: true,
         cancellationHours: 24,
       },
@@ -266,7 +226,7 @@ async function seedProperty(
         const date = addDays(today, i);
         const dayOfWeek = date.getDay();
         const isWeekend = dayOfWeek === 5 || dayOfWeek === 6;
-        const price = isWeekend ? rt.basePrice * 1.2 : rt.basePrice;
+        const price = isWeekend ? rt.basePrice * 1.05 : rt.basePrice;
         return {
           ratePlanId: ratePlan.id,
           date,
@@ -302,43 +262,22 @@ async function seedProperty(
 
   console.log(`  ✓ ${data.propertyType}: ${hotel.name} (${data.starRating}★, ${data.city})`);
   await seedHotelImages(hotel.id, data.slug);
-  await seedHotelReviews(hotel.id, data.slug);
   return hotel;
 }
 
-async function seedHotelReviews(hotelId: string, slug: string) {
-  const existing = await prisma.hotelReview.count({ where: { hotelId } });
-  if (existing > 0) return;
-
-  const indiaReviews: Record<string, { guestName: string; rating: number; title: string; comment: string }[]> = {
-    'bengaluru-tech-park-hotel': [
-      { guestName: 'Rahul S.', rating: 5, title: 'Perfect for business', comment: 'Great location near tech parks. Fast WiFi and excellent breakfast.' },
-      { guestName: 'Priya M.', rating: 4, title: 'Comfortable stay', comment: 'Clean rooms and friendly staff. Rooftop bar was a nice touch.' },
-    ],
-    'imperial-grand-mumbai': [
-      { guestName: 'Ananya K.', rating: 5, title: 'Stunning harbour views', comment: 'The suite overlooking Marine Drive was breathtaking. World-class service.' },
-      { guestName: 'Vikram P.', rating: 5, title: 'Best in Mumbai', comment: 'E Stays Imperial Grand sets the standard. Will return every trip.' },
-    ],
-    'kerala-backwater-resort': [
-      { guestName: 'Deepa R.', rating: 5, title: 'Paradise on backwaters', comment: 'Houseboat excursion was magical. Ayurvedic spa was rejuvenating.' },
-    ],
-  };
-
-  const reviews = indiaReviews[slug] || [];
-  if (reviews.length === 0) return;
-
-  await prisma.hotelReview.createMany({
-    data: reviews.map((r) => ({ hotelId, ...r, status: 'PUBLISHED' as const })),
-  });
-}
-
-async function seedAllProperties(users: Awaited<ReturnType<typeof seedUsers>>) {
-  console.log(`Seeding ${PROPERTIES.length} properties...`);
+async function seedArProperties(adminId: string) {
+  console.log(`Seeding ${PROPERTIES.length} AR Hospitality properties...`);
 
   for (const prop of PROPERTIES) {
-    const staff = [{ userId: users.partner.id, title: 'Owner', isPrimary: true }];
-    await seedProperty(prop, users.partner.id, users.admin.id, staff);
+    await seedProperty(prop, adminId, adminId);
   }
+}
+
+async function markArHotelsNotDemo() {
+  await prisma.hotel.updateMany({
+    where: { slug: { in: [...AR_HOSPITALITY_PROPERTY_SLUGS] } },
+    data: { isDemo: false },
+  });
 }
 
 async function main() {
@@ -346,17 +285,26 @@ async function main() {
 
   await seedRolesAndPermissions();
   await seedAmenities();
-  const users = await seedUsers();
-  await seedAllProperties(users);
-  await seedAdminDemoData(prisma);
+  const admin = await getOrCreateAdmin();
+
+  await purgeDemoHotels();
+  await purgeDemoUsers();
+
+  await seedArProperties(admin.id);
+  await importArListings(prisma);
+  await markArHotelsNotDemo();
   await seedFinanceData();
 
+  const hotelCount = await prisma.hotel.count();
+
   console.log('\n✅ Seed completed successfully!');
-  console.log(`\n${PROPERTIES.length} properties across Hotels, Resorts, Apartments, Villas, Houses & Homestays`);
-  console.log('\nMarketing demo accounts (for presentations only):');
-  console.log('  Admin:   admin@estays.com / Admin123!');
-  console.log('  Partner: partner@estays.com / Partner123!');
-  console.log('\nGuests and new partners must register with email OTP verification.');
+  console.log(`\n${hotelCount} live properties (${PROPERTIES.length} AR Hospitality + partner listings)`);
+  console.log('\nNew partner inventory is added only via partner signup & onboarding.');
+  if (process.env.BOOTSTRAP_ADMIN_EMAIL) {
+    console.log(`\nPlatform admin: ${process.env.BOOTSTRAP_ADMIN_EMAIL}`);
+  } else {
+    console.log('\nLocal dev admin: admin@estays.com / Admin123!');
+  }
 }
 
 main()

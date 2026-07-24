@@ -74,6 +74,12 @@ export const createHotelSchema = z.object({
 
 export const updateHotelSchema = createHotelSchema.partial();
 
+export const featuredHotelsSchema = z.object({
+  currency: z.string().length(3).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 export const hotelSearchSchema = z.object({
   city: z.string().optional(),
   country: z.string().optional(),
@@ -223,6 +229,34 @@ export const createPaymentSchema = z.object({
   payerName: z.string().min(2, 'Full name is required'),
   payerEmail: z.string().email('Valid email required for refunds'),
   payerPhone: z.string().optional(),
+});
+
+export const createRazorpayOrderSchema = z.object({
+  bookingId: z.string(),
+  currency: z.string().length(3).optional(),
+  payerName: z.string().min(2, 'Full name is required'),
+  payerEmail: z.string().email('Valid email required for refunds'),
+  payerPhone: z.string().optional(),
+});
+
+export const verifyRazorpayPaymentSchema = z.object({
+  paymentId: z.string(),
+  razorpay_order_id: z.string().min(1),
+  razorpay_payment_id: z.string().min(1),
+  razorpay_signature: z.string().min(1),
+});
+
+export const createStripeIntentSchema = z.object({
+  bookingId: z.string(),
+  currency: z.string().length(3).optional(),
+  payerName: z.string().min(2, 'Full name is required'),
+  payerEmail: z.string().email('Valid email required for refunds'),
+  payerPhone: z.string().optional(),
+});
+
+export const confirmStripePaymentSchema = z.object({
+  paymentId: z.string(),
+  paymentIntentId: z.string().min(1),
 });
 
 // ─── Pagination ────────────────────────────────────────────────────

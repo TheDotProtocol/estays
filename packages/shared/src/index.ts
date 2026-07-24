@@ -86,6 +86,8 @@ export * from './currency';
 export * from './locations';
 export * from './loyalty';
 export * from './branding';
+export * from './property-content';
+export * from './images';
 export * from './countries';
 export * from './finance';
 export * from './company';

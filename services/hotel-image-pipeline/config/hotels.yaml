@@ -1,0 +1,58 @@
+# Target hotels — E Stays branded property names.
+# seed_urls: verified public listing / official pages (robots.txt respected).
+
+hotels:
+  - id: sandcastle-mara-lodge
+    name: E Stays Sandcastle Mara Lodge
+    location: Kenya
+    search_queries:
+      - "Sandcastle Mara Lodge site:booking.com"
+      - "Sandcastle Mara Lodge site:agoda.com"
+    seed_urls:
+      - "https://sandcastlemaralodge.com/"
+
+  - id: grand-sunset-phuket
+    name: E Stays Grand Sunset Phuket
+    location: Phuket, Thailand
+    search_queries:
+      - "Grand Sunset Hotel Phuket site:booking.com"
+      - "Grand Sunset Hotel Phuket site:agoda.com"
+    seed_urls:
+      - "https://www.agoda.com/en-in/grand-sunset-hotel/hotel/phuket-th.html"
+
+  - id: keraton-jimbaran
+    name: E Stays Keraton Jimbaran
+    location: Bali, Indonesia
+    search_queries:
+      - "Keraton Jimbaran Resort site:booking.com"
+      - "Keraton Jimbaran site:agoda.com"
+    seed_urls:
+      - "https://www.agoda.com/en-in/keraton-jimbaran-resort/hotel/bali-id.html"
+
+  - id: tri-shawa-resort
+    name: E Stays Tri-Shawa Resort
+    location: Prachuap Khiri Khan, Thailand
+    search_queries:
+      - "Tri-Shawa Resort site:booking.com"
+      - "Tri-Shawa Resort site:agoda.com"
+    seed_urls:
+      - "https://www.agoda.com/en-in/tri-shawa-resort/hotel/prachuap-khiri-khan-th.html"
+
+  - id: berjaya-langkawi-resort
+    name: E Stays Berjaya Langkawi Resort
+    location: Langkawi, Malaysia
+    search_queries:
+      - "Berjaya Langkawi Resort site:agoda.com"
+      - "Berjaya Langkawi site:booking.com"
+    seed_urls:
+      - "https://www.agoda.com/en-in/berjaya-langkawi-resort/hotel/langkawi-my.html"
+
+# Allowed OTA domains (robots.txt checked before each fetch)
+allowed_sources:
+  - booking.com
+  - agoda.com
+  - hotels.com
+  - expedia.com
+  - trip.com
+  - traveloka.com
+  - sandcastlemaralodge.com

@@ -65,26 +65,26 @@ export function DestinationAutocomplete({ value, onChange, placeholder = 'City o
         onChange={(e) => handleInput(e.target.value)}
         onFocus={() => value.length >= 1 && fetchSuggestions(value)}
         autoComplete="off"
-        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-gold/50 outline-none text-sm"
+        className="input-field"
       />
       {open && suggestions.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 bg-white border border-gold/20 rounded-lg shadow-xl max-h-56 overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-1 bg-white border border-surface-border rounded-xl shadow-card max-h-56 overflow-y-auto">
           {suggestions.map((s) => (
             <li key={`${s.city}-${s.state}`}>
               <button
                 type="button"
                 onClick={() => select(s)}
-                className="w-full text-left px-3 py-2.5 hover:bg-sand transition text-sm"
+                className="w-full text-left px-3 py-2.5 hover:bg-surface-muted transition text-sm"
               >
-                <span className="font-medium text-navy">{s.city}</span>
-                <span className="text-navy/50">, {s.state}, {s.country}</span>
+                <span className="font-medium text-ink">{s.city}</span>
+                <span className="text-ink-muted">, {s.state}, {s.country}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
       {loading && (
-        <span className="absolute right-3 top-3 text-xs text-navy/30">...</span>
+        <span className="absolute right-3 top-3 text-xs text-ink-subtle">…</span>
       )}
     </div>
   );

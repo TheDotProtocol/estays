@@ -18,6 +18,9 @@
     "migrate:deploy": "prisma migrate deploy",
     "seed": "tsx src/seed.ts",
     "seed:production": "tsx src/seed-production.ts",
+    "import:ar": "tsx src/import-ar-listings.ts",
+    "scrape:sandcastle": "tsx src/scrape-sandcastle-listings.ts",
+    "purge:demo": "tsx src/purge-demo.ts",
     "studio": "prisma studio",
     "reset": "prisma migrate reset --force"
   },

@@ -17,3 +17,14 @@ coverage/
 # Local credentials / demo notes (do not push)
 E Stays links and logins.docx
 *.docx
+
+# Hotel image pipeline artifacts
+services/hotel-image-pipeline/.venv/
+services/hotel-image-pipeline/dataset/
+services/hotel-image-pipeline/logs/
+services/hotel-image-pipeline/pipeline.db
+services/hotel-image-pipeline/.env
+services/hotel-image-pipeline/**/__pycache__/
+services/hotel-image-pipeline/**/*.pyc
+services/hotel-image-pipeline/dashboard/node_modules/
+services/hotel-image-pipeline/dashboard/dist/

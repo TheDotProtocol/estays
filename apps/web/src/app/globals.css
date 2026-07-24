@@ -1,24 +1,44 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --navy: #1a2b4a;
-  --navy-light: #2a3f6a;
-  --coral: #e8836b;
-  --gold: #c4a35a;
-  --cream: #faf8f3;
-  --sand: #f5f0e8;
+  --ink: #222222;
+  --ink-muted: #717171;
+  --surface: #ffffff;
+  --surface-muted: #f7f7f7;
+  --border: #ebebeb;
+  --brand: #e0394e;
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: var(--cream);
-  color: var(--navy);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background-color: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
 }
 
 .font-display {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand text-white font-semibold rounded-lg hover:bg-brand-hover transition-colors;
+  }
+  .btn-secondary {
+    @apply bg-white text-ink border border-surface-border font-medium rounded-lg hover:bg-surface-muted transition-colors;
+  }
+  .input-field {
+    @apply w-full px-3 py-2.5 border border-surface-border rounded-lg text-sm text-ink outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand;
+  }
+  .chip {
+    @apply text-xs px-3 py-1.5 rounded-full border border-surface-border text-ink-muted hover:border-ink transition;
+  }
+  .chip-active {
+    @apply bg-ink text-white border-ink;
+  }
 }

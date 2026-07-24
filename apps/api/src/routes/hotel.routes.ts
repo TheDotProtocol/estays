@@ -15,6 +15,7 @@ import {
   createRatePlanSchema,
   updatePricesSchema,
   paginationSchema,
+  featuredHotelsSchema,
   guestComplaintSchema,
   PERMISSIONS,
 } from '@estays/shared';
@@ -41,6 +42,16 @@ hotelRouter.get('/amenities', async (_req: AuthRequest, res: Response) => {
   const amenities = await prisma.amenity.findMany({ orderBy: { category: 'asc' } });
   sendSuccess(res, amenities);
 });
+
+hotelRouter.get(
+  '/featured',
+  validate(featuredHotelsSchema, 'query'),
+  async (req: AuthRequest, res: Response) => {
+    const query = req.query as unknown as { page: number; limit: number; currency?: string };
+    const result = await hotelService.listFeaturedHotels(query);
+    sendSuccess(res, result.hotels, 200, buildPaginationMeta(query.page, query.limit, result.total));
+  }
+);
 
 hotelRouter.get(
   '/search',

@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hotel-image-pipeline"
+version = "1.0.0"
+description = "Production-grade hotel image collection and classification pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.32.0",
+  "pydantic>=2.9.0",
+  "pydantic-settings>=2.6.0",
+  "requests>=2.32.0",
+  "beautifulsoup4>=4.12.0",
+  "lxml>=5.3.0",
+  "playwright>=1.49.0",
+  "Pillow>=11.0.0",
+  "opencv-python-headless>=4.10.0",
+  "numpy>=2.1.0",
+  "imagehash>=4.3.0",
+  "open-clip-torch>=2.26.0",
+  "torch>=2.5.0",
+  "transformers>=4.46.0",
+  "sentencepiece>=0.2.0",
+  "sqlalchemy>=2.0.36",
+  "psycopg2-binary>=2.9.10",
+  "aiohttp>=3.11.0",
+  "aiofiles>=24.1.0",
+  "tenacity>=9.0.0",
+  "python-multipart>=0.0.12",
+  "pyyaml>=6.0.2",
+  "tqdm>=4.67.0",
+  "httpx>=0.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.24.0",
+  "pytest-cov>=6.0.0",
+  "ruff>=0.8.0",
+]
+
+[project.scripts]
+hotel-pipeline = "hotel_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

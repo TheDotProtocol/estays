@@ -225,6 +225,37 @@ export class HotelService {
     return hotelRepository.list(filters);
   }
 
+  /** Fast listing for homepage — no per-date inventory checks (uses base prices). */
+  async listFeaturedHotels(input: { page?: number; limit?: number; currency?: string }) {
+    const page = input.page || 1;
+    const limit = input.limit || 50;
+    const displayCurrency = input.currency || 'USD';
+
+    const { hotels, total } = await hotelRepository.searchPublic({ page, limit });
+
+    const enriched = hotels.map((hotel) => {
+      let lowestPrice: number | null = null;
+      for (const rt of hotel.roomTypes) {
+        const price = parseDecimal(rt.basePrice);
+        if (lowestPrice === null || price < lowestPrice) {
+          lowestPrice = price;
+        }
+      }
+
+      return {
+        ...hotel,
+        hasAvailability: true,
+        lowestPrice,
+        lowestPriceDisplay:
+          lowestPrice !== null ? convertFromUSD(lowestPrice, displayCurrency) : null,
+        priceFormatted: lowestPrice !== null ? formatPrice(lowestPrice, displayCurrency) : null,
+        displayCurrency,
+      };
+    });
+
+    return { hotels: enriched, total, currency: displayCurrency };
+  }
+
   async searchHotels(input: HotelSearchInput) {
     const displayCurrency = input.currency || 'USD';
     const resolved = input.city ? resolveDestinationQuery(input.city) : {};
@@ -485,6 +516,10 @@ export class HotelService {
           roomTypeName: rt.name,
           maxOccupancy: rt.maxOccupancy,
           basePrice: parseDecimal(rt.basePrice),
+          bedType: rt.bedType,
+          imageUrl: rt.imageUrl || null,
+          galleryUrls: rt.galleryUrls || [],
+          features: rt.features || [],
           available: avail.available,
           roomsAvailable: avail.roomsAvailable,
           ratePlanId: ratePlan?.id,

@@ -221,6 +221,7 @@ model Hotel {
   approvedById String?
   approvedAt   DateTime?
   rejectionReason String?
+  richContent  Json?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -378,6 +379,9 @@ model RoomType {
   maxOccupancy Int      @default(2)
   bedType      String?
   sizeSqm      Float?
+  imageUrl     String?
+  galleryUrls  String[] @default([])
+  features     String[] @default([])
   basePrice    Decimal  @db.Decimal(10, 2)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
